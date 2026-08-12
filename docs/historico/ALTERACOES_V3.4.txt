@@ -1,0 +1,28 @@
+V3.4 — CORREÇÃO DEFINITIVA DO CADASTRO + PROTEÇÃO DO DASHBOARD
+
+Problemas identificados na V3.3:
+- apiFetch() chamava a própria apiFetch() recursivamente em vez de fetch(), causando "Não foi possível comunicar com o servidor".
+- /dashboard.html era servido pelo static sem uma barreira de autenticação real; localStorage não protege uma URL.
+- sessão antiga podia permanecer válida.
+
+Correções:
+1. apiFetch() agora usa fetch() corretamente.
+2. Login cria cookie HttpOnly auth_token.
+3. /dashboard.html exige cookie válido e perfil corretor antes de ser entregue.
+4. API aceita Bearer token ou cookie.
+5. /api/logout encerra também a sessão do cookie.
+6. dashboard valida /api/auth/check ao abrir.
+7. sessão antiga é invalidada pela troca do JWT_SECRET nesta versão.
+8. login grava também o objeto usuario no localStorage.
+9. API pública passou a usar /api, sem localhost fixo.
+10. Cadastro + upload de fotos mantém o fluxo original.
+
+TESTE:
+npm install
+npm start
+Abrir http://localhost:3000
+Fazer login em fabiano@admin / [REMOVIDO — não existe senha padrão]
+Depois Dashboard > Novo > preencher > escolher fotos > Cadastrar.
+
+IMPORTANTE:
+Se o navegador ainda tiver a V3.3 aberta, feche a aba do dashboard antigo e entre novamente pela página inicial.

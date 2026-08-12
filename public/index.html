@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fabiano Reis Imóveis | Compra, Venda e Aluguel — CRECI-RJ 93.426</title>
+  <meta name="description" content="Fabiano Reis de Araújo, corretor imobiliário CRECI-RJ 93.426. Imóveis para compra, venda e aluguel com atendimento personalizado.">
+  <meta name="keywords" content="imobiliária, corretor de imóveis, CRECI-RJ, compra de imóvel, venda de imóvel, aluguel">
+  <meta name="author" content="Fabiano Reis de Araújo">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="canonical" href="https://imobiliaria-fabiano-oficial.vercel.app/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Fabiano Reis Imóveis">
+  <meta property="og:locale" content="pt_BR">
+  <meta property="og:url" content="https://imobiliaria-fabiano-oficial.vercel.app/">
+  <meta property="og:title" content="Fabiano Reis Imóveis | Compra, Venda e Aluguel">
+  <meta property="og:description" content="Corretor imobiliário CRECI-RJ 93.426. Atendimento personalizado para compra, venda e aluguel de imóveis.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Fabiano Reis Imóveis | Compra, Venda e Aluguel">
+  <meta name="twitter:description" content="Corretor imobiliário CRECI-RJ 93.426. Atendimento personalizado para compra, venda e aluguel de imóveis.">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip-link" href="#imoveis">Ir para os imóveis</a>
+
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <div class="container">
+      <div class="logo">
+       <span>Fabiano Reis Imóveis</span>
+      </div>
+      <ul class="nav-menu">
+        <li><a href="#inicio">Início</a></li>
+        <li><a href="#imoveis">Imóveis</a></li>
+        <li><a href="#sobre">Sobre</a></li>
+        <li><a href="#contato">Contato</a></li>
+        <li id="nav-admin"><a href="#" onclick="mostrarLogin(); return false;">🔒 Área do Corretor</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- BANNER PRINCIPAL -->
+  <section id="inicio" class="banner">
+    <img src="/uploads/imagens/banner-alto-padrao.png"
+         alt="Casa de alto padrão — Imobiliária Fabiano Reis"
+         class="banner-img" fetchpriority="high" decoding="async"
+         onerror="this.onerror=null;this.src='/img/placeholder.svg';">
+    <h1 class="sr-only">Fabiano Reis Imóveis — compra, venda e aluguel de imóveis (CRECI-RJ 93.426)</h1>
+  </section>
+
+  <!-- APRESENTAÇÃO DO CORRETOR -->
+  <section class="corretor-info">
+    <div class="container">
+      <div class="corretor-card">
+        <div class="corretor-foto">
+          <img src="/uploads/imagens/foto-corretor-v5.png" alt="Fabiano Reis de Araújo, corretor imobiliário" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='/img/placeholder.svg';">
+        </div>
+        <div class="corretor-dados">
+          <h2>Fabiano Reis de Araújo</h2>
+          <p class="creci">🏆 CRECI-RJ 93.426</p>
+          <p class="descricao">"Não é sobre imóveis, é sobre pessoas. Ajudar você a realizar seu sonho é minha missão."</p>
+          
+
+
+          <div class="horario">
+            <p><strong>📅 Horário de Atendimento:</strong> Segunda a Sábado, 8:00 - 16:00</p>
+            <p><strong>📍 Localização:</strong> Travessa Arlindo Carreiro, 451</p>
+          </div>
+
+          <div class="redes-sociais">
+            <a href="https://www.instagram.com/fabianoreiscorretor" target="_blank" class="rede-icon instagram">Instagram</a>
+            <a href="https://www.facebook.com/share/14n16MN3h15/" target="_blank" class="rede-icon facebook">Facebook</a>
+            <a href="https://wa.me/5521991822134" target="_blank" rel="noopener noreferrer" class="rede-icon whatsapp">WhatsApp</a>                
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+ 
+
+  <!-- IMÓVEIS DESTAQUE -->
+  <section id="imoveis" class="imoveis-section">
+    <div class="container">
+      <h2>Imóveis em Destaque</h2>
+      <div id="imoveis-container" class="imoveis-grid">
+        <!-- Carregado por JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- MODAL DE IMAGEM AMPLIADA -->
+  <div id="imagemModal" class="modal-imagem">
+    <button type="button" class="close-imagem" onclick="fecharImagemModal()" aria-label="Fechar imagem">&times;</button>
+    <img id="imagemAmpliada" src="" alt="Imagem ampliada">
+    <div id="infoImagem" class="info-imagem"></div>
+  </div>
+
+  <!-- MODAL DE VÍDEO DO IMÓVEL -->
+  <div id="videoModal" class="modal-imagem video-modal">
+    <button type="button" class="close-imagem" onclick="fecharVideoModal()" aria-label="Fechar vídeo">&times;</button>
+    <div id="videoPlayerContainer" style="width:min(1000px,92vw);"></div>
+    <div id="infoVideo" class="info-imagem"></div>
+  </div>
+
+  <!-- CONTATO (MOVIDO PARA AQUI) -->
+  <section id="contato" class="contato-section">
+    <div class="container">
+      <h2>Entre em Contato</h2>
+      <form id="formContato" class="form-contato">
+        <label class="sr-only" for="nomeLead">Nome</label>
+        <input type="text" id="nomeLead" name="nome" autocomplete="name" placeholder="Seu Nome" required>
+        <label class="sr-only" for="emailLead">E-mail</label>
+        <input type="email" id="emailLead" name="email" autocomplete="email" placeholder="Seu Email" required>
+        <label class="sr-only" for="telefoneLead">Telefone</label>
+        <input type="tel" id="telefoneLead" name="telefone" autocomplete="tel" placeholder="Seu Telefone" required>
+        <label class="sr-only" for="whatsappLead">WhatsApp (opcional)</label>
+        <input type="tel" id="whatsappLead" name="whatsapp" placeholder="WhatsApp (opcional)">
+        <label class="sr-only" for="mensagemLead">Mensagem</label>
+        <textarea id="mensagemLead" name="mensagem" placeholder="Sua Mensagem" rows="5" required></textarea>
+        <button type="submit" class="btn-primary">Enviar mensagem</button>
+      </form>
+      <p id="msgContato"></p>
+    </div>
+  </section>
+
+  <!-- SOBRE -->
+  <section id="sobre" class="sobre-section">
+    <div class="container">
+      <h2>Por que escolher Fabiano Reis?</h2>
+      <div class="beneficios">
+        <div class="beneficio">
+          <h3>🎯 Experiência</h3>
+          <p>Mais de 2 anos no mercado imobiliário com dezenas de transações bem-sucedidas</p>
+        </div>
+        <div class="beneficio">
+          <h3>💼 Profissionalismo</h3>
+          <p>Corretor credenciado CRECI-RJ com total transparência e segurança</p>
+        </div>
+        <div class="beneficio">
+          <h3>🤝 Dedicação</h3>
+          <p>Atendimento personalizado focado em seus objetivos e necessidades</p>
+        </div>
+        <div class="beneficio">
+          <h3>📊 Mercado</h3>
+          <p>Conhecimento profundo do mercado imobiliário local e de oportunidades</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MODAL LOGIN -->
+  <div id="loginModal" class="modal">
+    <div class="modal-content">
+      <button type="button" class="close" onclick="fecharLogin()" aria-label="Fechar login">&times;</button>
+      <h2>🔒 Acesso do Corretor</h2>
+      <form id="formLogin">
+        <label class="sr-only" for="emailLogin">E-mail</label>
+        <input type="email" id="emailLogin" name="email" autocomplete="email" placeholder="Email" required>
+        <label class="sr-only" for="senhaLogin">Senha</label>
+        <input type="password" id="senhaLogin" name="senha" autocomplete="current-password" placeholder="Senha" required>
+        <button type="submit" class="btn-primary">Entrar</button>
+      </form>
+      <p id="msgLogin"></p>
+    </div>
+  </div>
+
+<!-- WHATSAPP FLUTUANTE -->
+<a class="whatsapp-float"
+   href="https://wa.me/5521991822134?text=Ol%C3%A1%20Fabiano%2C%20vim%20pelo%20site%20e%20gostaria%20de%20mais%20informa%C3%A7%C3%B5es."
+   target="_blank" rel="noopener noreferrer" aria-label="Falar com Fabiano pelo WhatsApp">
+  <span class="whatsapp-float-icon">◉</span>
+  <span class="whatsapp-float-text">Fale no WhatsApp</span>
+</a>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; <span id="ano-atual">2026</span> Fabiano Reis - Corretor Imobiliário. Todos os direitos reservados.</p>
+      <p>CRECI-RJ 93.426 | Desenvolvido com ❤️ para o mercado imobiliário</p>
+    </div>
+  </footer>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "RealEstateAgent",
+    "name": "Fabiano Reis de Araújo",
+    "description": "Corretor imobiliário CRECI-RJ 93.426.",
+    "telephone": "+5521991822134",
+    "email": "fabianooficialcorretor@gmail.com",
+    "url": "https://imobiliaria-fabiano-oficial.vercel.app/",
+    "address": { "@type": "PostalAddress", "streetAddress": "Travessa Arlindo Carreiro, 451", "addressRegion": "RJ", "addressCountry": "BR" },
+    "openingHours": "Mo-Sa 08:00-16:00",
+    "sameAs": [
+      "https://www.instagram.com/fabianoreiscorretor",
+      "https://www.facebook.com/share/14n16MN3h15/"
+    ]
+  }
+  </script>
+  <script src="script.js"></script>
+</body>
+</html>

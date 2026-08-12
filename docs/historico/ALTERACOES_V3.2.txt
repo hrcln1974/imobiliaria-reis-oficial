@@ -1,0 +1,30 @@
+V3.2 — PAINEL PROFISSIONAL FABIANO REIS
+
+Correções principais:
+1. Corrigido o problema de largura do dashboard: o conteúdo não fica mais estreito.
+2. Sidebar e área principal reorganizadas para desktop e mobile.
+3. Novo cabeçalho/hero do dashboard.
+4. Cards de indicadores e tabelas com visual profissional.
+5. Formulário de cadastro reorganizado e responsivo.
+6. Edição de imóveis implementada.
+7. Desativação lógica de imóveis implementada.
+8. API do dashboard alterada para /api, evitando localhost fixo.
+9. Caminhos do servidor ajustados para usar __dirname.
+10. Uploads restritos a imagens e 5 MB.
+11. Endpoint /api/health adicionado.
+12. Código JavaScript validado com Node.js --check.
+
+TESTE:
+  npm install
+  npm start
+
+Depois abra:
+  http://localhost:3000
+  http://localhost:3000/dashboard.html
+
+Login de demonstração:
+  fabiano@admin
+  [REMOVIDO — não existe senha padrão]
+
+Observação:
+node_modules NÃO está incluído no ZIP. Isso evita enviar milhares de arquivos desnecessários.

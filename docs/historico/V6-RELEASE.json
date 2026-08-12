@@ -1,0 +1,21 @@
+{
+  "version": "6.0.0",
+  "base": "fabiano-reis-V5.3.1-VERCEL-READY.zip",
+  "changes": [
+    "CORS restritivo via CORS_ORIGIN",
+    "dotenv carregado antes da configuração",
+    "remoção de credenciais administrativas conhecidas do código",
+    "remoção/desativação de seeds fictícios conhecidos",
+    "env.example revisado",
+    "README V6 criado",
+    "release limpa sem segredos e artefatos locais"
+  ],
+  "production": {
+    "platform": "Vercel",
+    "database": "Neon PostgreSQL",
+    "media": "Vercel Blob"
+  },
+  "development": {
+    "database": "SQLite"
+  }
+}

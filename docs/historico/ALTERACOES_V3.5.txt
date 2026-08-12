@@ -1,0 +1,24 @@
+V3.5 — WHATSAPP + LEADS + MENU IMÓVEIS
+
+Correções e melhorias:
+- Corrigido botão WhatsApp do site: havia atributo HTML `_class` inválido.
+- Adicionado botão WhatsApp flutuante com link e mensagem pré-preenchida.
+- Links externos WhatsApp/Instagram/Facebook usam rel=noopener noreferrer.
+- Busca pública passou a aguardar corretamente os cards assíncronos.
+- Dashboard passou a usar /api/admin/imoveis, incluindo ativos e inativos.
+- Menu Imóveis recebeu contador, busca, filtro de status e atualização.
+- Imóveis podem ser desativados e reativados pelo painel.
+- Menu Leads recebeu contador de novos, busca, filtro de status e atualização.
+- Leads exibem contato, telefone, interesse, mensagem e ação WhatsApp.
+- Status dos leads pode ser atualizado sem recarregar a página.
+- Corrigida lista de últimos imóveis para usar os mais recentes.
+- Adicionadas proteções simples contra HTML injetado em textos exibidos no painel.
+- Dashboard protegido continua usando sessão/cookie.
+- Cache do dashboard protegido foi desativado para evitar sessão antiga.
+- Versão do projeto: 3.5.0.
+
+Teste:
+1. npm install
+2. npm start
+3. http://localhost:3000
+4. Login: fabiano@admin / [REMOVIDO — não existe senha padrão]

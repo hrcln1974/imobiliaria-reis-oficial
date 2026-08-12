@@ -1,0 +1,13 @@
+node_modules/
+.env
+.env.local
+*.log
+database.db
+database.db-journal
+public/uploads/imagens/*
+public/uploads/videos/*
+!public/uploads/imagens/.gitkeep
+!public/uploads/videos/.gitkeep
+release/
+.vercel/
+.DS_Store

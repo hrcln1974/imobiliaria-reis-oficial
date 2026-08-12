@@ -1,0 +1,26 @@
+RELATÓRIO DE VALIDAÇÃO — FABIANO REIS IMÓVEIS V4.1.0
+
+OBJETIVO
+Adicionar gerenciamento profissional de vídeos aos imóveis, sem remover as funções existentes.
+
+VALIDAÇÕES
+[✓] server.js — sintaxe OK
+[✓] public/dashboard.js — sintaxe OK
+[✓] public/script.js — sintaxe OK
+[✓] database.db presente
+[✓] imovel_midias suporta tipo 'video' sem alteração destrutiva
+[✓] public/uploads/videos criado
+[✓] Upload de até 3 vídeos por envio
+[✓] Limite de 50 MB por vídeo
+[✓] MP4 / WebM / OGG / MOV
+[✓] Vídeo por URL
+[✓] Suporte visual a links diretos, YouTube e Vimeo
+[✓] Exclusão de vídeos
+[✓] Vídeos exibidos na página pública
+[✓] Vídeos exibidos nos detalhes do imóvel
+[✓] Área do Corretor gerencia fotos e vídeos no mesmo painel
+[✓] npm run check aprovado
+
+OBSERVAÇÃO
+O teste de execução completa do SQLite depende da instalação de node_modules no Windows.
+O pacote de entrega não inclui node_modules; execute npm install no Windows antes de npm start.

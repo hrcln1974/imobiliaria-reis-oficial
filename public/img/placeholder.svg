@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-label="Imagem pendente de configuração">
+  <rect width="1200" height="675" fill="#e2e8f0"/>
+  <rect x="24" y="24" width="1152" height="627" fill="none" stroke="#94a3b8" stroke-width="3" stroke-dasharray="14 10"/>
+  <text x="600" y="330" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="44" fill="#475569">[IMAGEM PENDENTE]</text>
+  <text x="600" y="386" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="26" fill="#64748b">Envie o arquivo para public/uploads/imagens/</text>
+</svg>

@@ -1,0 +1,36 @@
+FABIANO REIS — ALTERAÇÕES V5.3.0
+
+1. Corrigida a arquitetura de persistência para Vercel:
+   - SQLite permanece no desenvolvimento local.
+   - DATABASE_URL ativa PostgreSQL/Neon em produção.
+
+2. Corrigido o problema observado na V5.2:
+   - PUT /api/imoveis/:id agora grava no PostgreSQL quando o sistema está no Vercel.
+   - criação, ativação/desativação e leads usam a mesma camada persistente.
+
+3. Mídias:
+   - Vercel Blob para fotos e vídeos em produção.
+   - exclusão de Blob quando a mídia é removida.
+   - URLs externas continuam suportadas.
+
+4. Uploads grandes:
+   - Client Uploads do Vercel Blob para arquivos que não devem passar pelo limite de 4,5 MB das Functions.
+   - vídeos podem usar multipart upload no navegador.
+
+5. Preservação V5.2:
+   - banner-alto-padrao.jpg/png;
+   - foto do corretor;
+   - marca d'água;
+   - acesso protegido do corretor;
+   - galeria foto + vídeo;
+   - layout e responsividade existentes.
+
+6. Recuperação de mídia:
+   - arquivos de imóveis que haviam sido removidos do pacote V5.2 foram recuperados do histórico Git incluído no ZIP, sem inventar imagens novas.
+
+7. Migração:
+   - scripts/migrate-sqlite-to-postgres.js preserva IDs e envia mídias locais ao Blob.
+
+8. Validação:
+   - novo preflight-v53.js;
+   - verificações de sintaxe, arquitetura, Blob, Neon, autenticação, galeria e arquivos essenciais.

@@ -1,0 +1,31 @@
+IMOBILIÁRIA FABIANO REIS — V5.3
+
+1) Instale as dependências:
+   npm install
+
+2) Valide:
+   npm run check
+   npm run check:v53
+
+3) Teste local:
+   npm start
+   http://localhost:3000
+
+4) Para Vercel:
+   - configure DATABASE_URL;
+   - configure JWT_SECRET;
+   - crie/conecte Vercel Blob público;
+   - execute npm run migrate:vercel;
+   - faça push para o GitHub conectado ao Vercel.
+
+5) Teste no painel:
+   - login;
+   - editar imóvel;
+   - criar imóvel;
+   - ativar/desativar;
+   - galeria;
+   - foto principal;
+   - exclusão de foto/vídeo;
+   - upload de vídeo grande.
+
+Consulte README-V5.3.md para o procedimento completo.

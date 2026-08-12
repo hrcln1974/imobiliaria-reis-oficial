@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard.html
+Disallow: /api/
+
+Sitemap: https://imobiliaria-fabiano-oficial.vercel.app/sitemap.xml

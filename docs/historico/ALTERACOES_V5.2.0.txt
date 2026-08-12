@@ -1,0 +1,8 @@
+V5.2.0 — Vercel Ready
+- adicionada entrada serverless api/index.js
+- adicionada vercel.json
+- server.js agora exporta o Express e evita app.listen no Vercel
+- adicionada validação específica preflight-vercel.js
+- mantidos login 🔒, dashboard, fotos + vídeos e gerenciamento de mídias
+- README atualizado com deploy e limitações de persistência
+- .gitignore corrigido para não ignorar package-lock.json e database.db no pacote de demonstração

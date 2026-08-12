@@ -1,0 +1,21 @@
+V3.3 — CORREÇÃO DE CADASTRO E FOTOS
+
+Correções:
+- Corrigido "Token inválido" por sessão antiga: dashboard agora detecta 401, limpa sessão e manda para login.
+- Adicionado /api/auth/check.
+- Cadastro/edição continua com autenticação Bearer.
+- Upload de até 12 fotos por imóvel, 5 MB cada.
+- Fotos podem ser escolhidas no formulário de cadastro e são enviadas após o imóvel ser criado.
+- Gerenciador de imagens agora aceita fotos do computador e URL.
+- Pré-visualização das fotos antes do cadastro.
+- Corrigido PUT de imóvel para atualização parcial; desativar um imóvel não apaga os outros campos.
+- Erros de upload retornam JSON amigável.
+- Layout do bloco de fotos profissional e responsivo.
+
+TESTE:
+1. Substitua a pasta pela V3.3.
+2. npm install
+3. npm start
+4. Abra http://localhost:3000
+5. Faça login novamente. Se o painel disser Token inválido, ele limpará a sessão antiga automaticamente.
+6. Dashboard > Novo > preencha o imóvel > selecione as fotos > Cadastrar Imóvel.
