@@ -261,7 +261,9 @@ body {
 
 .redes-sociais {
   display: flex;
+  flex-wrap: wrap;
   gap: 15px;
+  align-items: center;
 }
 
 .rede-icon {
@@ -286,6 +288,11 @@ body {
 .rede-icon.whatsapp {
   background: white;
   color: #25d366;
+}
+
+.rede-icon.youtube {
+  background: #ff0000;
+  color: white;
 }
 
 .rede-icon:hover {
@@ -1219,40 +1226,3 @@ html, body { max-width: 100%; overflow-x: hidden; }
 img, video, iframe { max-width: 100%; }
 
 
-/* ============================================================
-   YouTube — botão oficial do canal Fabiano Reis
-   ============================================================ */
-.nav-menu .nav-youtube a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  background: #dc2626;
-  color: #fff;
-  padding: 8px 13px;
-  border-radius: 8px;
-  font-weight: 700;
-  box-shadow: 0 3px 10px rgba(0,0,0,.18);
-  transition: transform .2s ease, background .2s ease, box-shadow .2s ease;
-}
-
-.nav-menu .nav-youtube a:hover {
-  color: #fff;
-  background: #b91c1c;
-  border-bottom: 0;
-  padding-bottom: 8px;
-  transform: translateY(-1px);
-  box-shadow: 0 5px 14px rgba(0,0,0,.25);
-}
-
-@media (max-width: 768px) {
-  .nav-menu .nav-youtube a {
-    padding: 7px 5px;
-    min-height: 44px;
-    width: 100%;
-  }
-
-  .nav-menu .nav-youtube a:hover {
-    padding-bottom: 7px;
-  }
-}
