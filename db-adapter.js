@@ -79,6 +79,14 @@ class PostgresCompat {
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    // Compatibilidade com bancos PostgreSQL criados por versões anteriores.
+    // CREATE TABLE IF NOT EXISTS não altera tabelas existentes; por isso
+    // garantimos aqui as colunas usadas pelo gerenciador de mídias.
+    await this.sql.query(`ALTER TABLE imovel_midias ADD COLUMN IF NOT EXISTS url_externa TEXT`);
+    await this.sql.query(`ALTER TABLE imovel_midias ADD COLUMN IF NOT EXISTS ordem INTEGER DEFAULT 0`);
+    await this.sql.query(`ALTER TABLE imovel_midias ADD COLUMN IF NOT EXISTS principal INTEGER DEFAULT 0`);
+    await this.sql.query(`ALTER TABLE imovel_midias ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+
     await this.sql.query(`
       CREATE TABLE IF NOT EXISTS leads (
         id SERIAL PRIMARY KEY,

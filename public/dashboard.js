@@ -72,7 +72,7 @@ function abrirSecao(secaoId, navElement) {
   if (secaoId === 'inicio') carregarDashboard();
   if (secaoId === 'imoveis') carregarImoveis();
   if (secaoId === 'leads') carregarLeads();
-  if (secaoId === 'novo-imovel' && !imovelEditandoId) prepararNovoImovel();
+  if (secaoId === 'novo-imovel') prepararNovoImovel();
 }
 
 async function carregarDashboard() {
@@ -169,6 +169,28 @@ async function carregarPreviewExistentes(id) {
 document.getElementById('formNovoImovel')?.addEventListener('submit', async e => {
   e.preventDefault();
   const msg = document.getElementById('msgFormImovel'); const dados = coletarDadosImovel(); const editando = Boolean(imovelEditandoId);
+  const obrigatorios = [
+    ['titulo', dados.titulo, 'Título do imóvel'],
+    ['tipo', dados.tipo, 'Tipo de imóvel'],
+    ['operacao', dados.operacao, 'Operação'],
+    ['descricao', dados.descricao, 'Descrição completa'],
+    ['endereco', dados.endereco, 'Endereço'],
+    ['bairro', dados.bairro, 'Bairro'],
+    ['cidade', dados.cidade, 'Cidade']
+  ];
+  const faltante = obrigatorios.find(([, valor]) => !String(valor ?? '').trim());
+  if (faltante) {
+    msg.className='form-message error';
+    msg.textContent=`❌ Preencha o campo obrigatório: ${faltante[2]}.`;
+    document.getElementById(faltante[0])?.focus();
+    return;
+  }
+  if (!Number.isFinite(dados.preco) || dados.preco < 0) {
+    msg.className='form-message error';
+    msg.textContent='❌ Informe um preço válido.';
+    document.getElementById('preco')?.focus();
+    return;
+  }
   msg.className='form-message info'; msg.textContent=editando?'⏳ Salvando alterações...':'⏳ Cadastrando imóvel...';
   try {
     const res = await apiFetch(editando ? `${API_BASE}/imoveis/${imovelEditandoId}` : `${API_BASE}/imoveis`, { method:editando?'PUT':'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(dados) });
@@ -209,14 +231,22 @@ document.getElementById('formNovoImovel')?.addEventListener('submit', async e =>
   } catch(err){ if(err.message!=='UNAUTHORIZED'){ console.error(err); msg.className='form-message error'; msg.textContent='❌ '+err.message; } }
 });
 
-document.getElementById('btnLimparImovel')?.addEventListener('click',()=>setTimeout(prepararNovoImovel,0));
+document.getElementById('btnLimparImovel')?.addEventListener('click',(e)=>{ e.preventDefault(); prepararNovoImovel(); abrirSecao('novo-imovel'); window.scrollTo({top:0,behavior:'smooth'}); });
 document.getElementById('btnGerenciarFotosEdicao')?.addEventListener('click',()=>{ if(imovelEditandoId) abrirGerenciadorImagens(imovelEditandoId); });
 
 async function editarImovel(id){
   try{
     const res=await apiFetch(`${API_BASE}/imoveis/${id}`); const data=await res.json(); if(!res.ok||!data.imovel) throw new Error(data.erro||'Imóvel não encontrado');
-    imovelEditandoId=id; preencherFormularioImovel(data.imovel); document.getElementById('tituloSecaoImovel').textContent='✏️ Editar Imóvel'; document.getElementById('btnSalvarImovel').textContent='💾 Salvar Alterações';
-    const b=document.getElementById('btnGerenciarFotosEdicao'); if(b) b.style.display='inline-flex'; await carregarPreviewExistentes(id); abrirSecao('novo-imovel'); window.scrollTo({top:0,behavior:'smooth'});
+    // Abre o formulário como um novo estado e, só depois, vincula o ID em edição.
+    // Isso evita que a rotina de limpeza de “Novo” apague os dados carregados.
+    abrirSecao('novo-imovel');
+    imovelEditandoId=id;
+    preencherFormularioImovel(data.imovel);
+    document.getElementById('tituloSecaoImovel').textContent='✏️ Editar Imóvel';
+    document.getElementById('btnSalvarImovel').textContent='💾 Salvar Alterações';
+    const b=document.getElementById('btnGerenciarFotosEdicao'); if(b) b.style.display='inline-flex';
+    await carregarPreviewExistentes(id);
+    window.scrollTo({top:0,behavior:'smooth'});
   }catch(err){ if(err.message!=='UNAUTHORIZED') alert('Não foi possível carregar o imóvel para edição: '+err.message); }
 }
 
@@ -305,6 +335,7 @@ async function carregarListaImagens(id){
   try{
     const res=await apiFetch(`${API_BASE}/imoveis/${id}/imagens`);
     const d=await res.json();
+    if(!res.ok) throw new Error(d.erro || 'Falha ao carregar imagens');
     const imagens=d.imagens||[];
     const c=document.getElementById('listaImagens');
     c.innerHTML=imagens.length?imagens.map(img=>
@@ -316,7 +347,11 @@ async function carregarListaImagens(id){
         </div>
       </div>`).join(''):
       '<p style="grid-column:1/-1;text-align:center;color:#64748b;padding:25px;">Nenhuma foto cadastrada.</p>';
-  }catch(e){console.error(e);}
+  }catch(e){
+    console.error('Erro ao carregar imagens:', e);
+    const c=document.getElementById('listaImagens');
+    if(c) c.innerHTML='<p style="grid-column:1/-1;text-align:center;color:#b91c1c;padding:25px;">❌ '+escapeHtml(e.message || 'Erro ao buscar imagens')+'</p>';
+  }
 }
 
 async function carregarListaVideos(id){

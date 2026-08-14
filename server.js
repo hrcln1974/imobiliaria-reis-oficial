@@ -1014,7 +1014,10 @@ app.get('/api/imoveis/:id/imagens', (req, res) => {
     "SELECT id, imovel_id, arquivo, url_externa, ordem, principal, criado_em FROM imovel_midias WHERE imovel_id = ? AND tipo = 'imagem' ORDER BY ordem ASC, criado_em DESC",
     [id],
     (err, imagens) => {
-      if (err) return res.status(500).json({ erro: 'Erro ao buscar imagens' });
+      if (err) {
+        console.error('[IMAGENS] Erro ao buscar imagens:', err);
+        return res.status(500).json({ erro: 'Erro ao buscar imagens no banco de dados' });
+      }
       res.json({ imagens: imagens || [] });
     }
   );
@@ -1125,7 +1128,10 @@ app.delete('/api/imoveis/:imovelId/imagens/:imagemId', verificarCorretor, (req, 
      WHERE id = ? AND imovel_id = ? AND tipo = 'imagem'`,
     [imagemId, imovelId],
     (err, imagem) => {
-      if (err) return res.status(500).json({ erro: 'Erro ao buscar imagem' });
+      if (err) {
+        console.error('[MÍDIA] Erro ao buscar imagem para exclusão:', err);
+        return res.status(500).json({ erro: 'Erro ao buscar imagem no banco de dados' });
+      }
       if (!imagem) return res.status(404).json({ erro: 'Foto não encontrada neste imóvel' });
 
       db.run(
@@ -1224,7 +1230,10 @@ app.post('/api/imoveis/:imovelId/imagens/:imagemId/excluir', verificarCorretor, 
      WHERE id = ? AND imovel_id = ? AND tipo = 'imagem'`,
     [imagemId, imovelId],
     (err, imagem) => {
-      if (err) return res.status(500).json({ erro: 'Erro ao buscar imagem' });
+      if (err) {
+        console.error('[MÍDIA] Erro ao buscar imagem para exclusão:', err);
+        return res.status(500).json({ erro: 'Erro ao buscar imagem no banco de dados' });
+      }
       if (!imagem) return res.status(404).json({ erro: 'Foto não encontrada neste imóvel' });
 
       db.run(

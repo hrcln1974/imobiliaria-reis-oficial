@@ -1,3 +1,12 @@
+## V6.2.2 — Correção do cadastro/edição e compatibilidade das mídias
+
+- Novo imóvel sempre limpa o estado de edição anterior (`imovelEditandoId`).
+- Botão “Limpar Formulário” passa a iniciar explicitamente um novo cadastro.
+- Validação no painel impede cadastro sem campos obrigatórios e sem preço válido.
+- Compatibilidade PostgreSQL: garante colunas de `imovel_midias` em bancos criados por versões anteriores.
+- Melhor tratamento de erros ao carregar/excluir fotos, com diagnóstico no log do servidor.
+- Mantidas as correções da V6.2.1 para exclusão em PostgreSQL/Neon.
+
 ## V6.2.1 — Correção de exclusão em PostgreSQL/Neon
 
 - Corrigido o adaptador PostgreSQL para usar `rowCount` nas operações `UPDATE`/`DELETE`.
