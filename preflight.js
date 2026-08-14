@@ -30,7 +30,7 @@ const warn = (label, condition) => {
   if (!condition) warnings++;
 };
 
-console.log('\n=== FABIANO REIS IMÓVEIS — CHECK DE ENTREGA (V6.2) ===\n');
+console.log('\n=== FABIANO REIS IMÓVEIS — CHECK DE ENTREGA (V6.2.3) ===\n');
 
 console.log('-- Estrutura --');
 [
@@ -108,10 +108,14 @@ ok('Limite de tentativas de login', server.includes('loginRateLimit'));
 ok('Validação de leads', server.includes('Informe um e-mail válido.'));
 ok('Sem segredos versionados', !exists('.env'));
 
+console.log('\n-- Hospedagem --');
+ok('Upload local na Hostinger sem Blob', server.includes("public/uploads/") && server.includes('armazenamentoMidia'));
+ok('Upload direto Blob somente quando Vercel + Blob', server.includes('uploadDiretoBlob') && server.includes('IS_VERCEL && USE_BLOB'));
+
 console.log('\n-- Vercel --');
 ok('Entrada serverless', exists('api/index.js') && read('api/index.js').includes("require('../server')"));
 ok('Configuração Vercel', exists('vercel.json') && read('vercel.json').includes('api/index.js'));
-ok('Sem disco quando PostgreSQL ativo', server.includes("const USE_BLOB = db.mode === 'postgres'") && server.includes('multer.memoryStorage()'));
+ok("Mídia configurável Hostinger/Vercel", server.includes("const USE_BLOB = db.mode === 'postgres' &&") && server.includes("app.get('/api/config'"));
 ok('Lockfile com @neondatabase/serverless', lock.includes('@neondatabase/serverless'));
 ok('Lockfile com @vercel/blob', lock.includes('@vercel/blob'));
 

@@ -79,14 +79,6 @@ class PostgresCompat {
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    // Compatibilidade com bancos PostgreSQL criados por versões anteriores.
-    // CREATE TABLE IF NOT EXISTS não altera tabelas existentes; por isso
-    // garantimos aqui as colunas usadas pelo gerenciador de mídias.
-    await this.sql.query(`ALTER TABLE imovel_midias ADD COLUMN IF NOT EXISTS url_externa TEXT`);
-    await this.sql.query(`ALTER TABLE imovel_midias ADD COLUMN IF NOT EXISTS ordem INTEGER DEFAULT 0`);
-    await this.sql.query(`ALTER TABLE imovel_midias ADD COLUMN IF NOT EXISTS principal INTEGER DEFAULT 0`);
-    await this.sql.query(`ALTER TABLE imovel_midias ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
-
     await this.sql.query(`
       CREATE TABLE IF NOT EXISTS leads (
         id SERIAL PRIMARY KEY,
@@ -139,20 +131,15 @@ class PostgresCompat {
     if (typeof params === 'function') { callback = params; params = []; }
     const original = String(sql).trim().replace(/;$/, '');
     const isInsert = /^INSERT\s+/i.test(original);
-    const query = isInsert && !/\bRETURNING\b/i.test(original)
+    const isUpdate = /^UPDATE\s+/i.test(original);
+    const isDelete = /^DELETE\s+/i.test(original);
+    const query = (isInsert || isUpdate || isDelete) && !/\bRETURNING\b/i.test(original)
       ? `${original} RETURNING id`
       : original;
-
-    // IMPORTANT: Neon returns only the row array by default. For UPDATE/DELETE
-    // that array is empty even when one row was actually changed/deleted.
-    // The old adapter therefore reported changes=0 in production, causing
-    // delete/update routes to behave as if the record did not exist.
-    this._enqueue(() => this.sql.query(convertPlaceholders(query), params || [], { fullResults: true }))
-      .then(result => {
-        const rows = Array.isArray(result) ? result : (result.rows || []);
-        const changes = Array.isArray(result) ? rows.length : Number(result.rowCount || 0);
+    this._enqueue(() => this._query(query, params || []))
+      .then(rows => {
         const ctx = {
-          changes,
+          changes: rows.length,
           lastID: rows[0] && rows[0].id != null ? Number(rows[0].id) : undefined
         };
         this._callback(callback, null, ctx);

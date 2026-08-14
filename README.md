@@ -22,7 +22,8 @@ imóveis, galeria de fotos e vídeos, destaque na home, captação e gestão de 
 | Banco (local) | SQLite 3 (`database.db`, criado automaticamente) |
 | Banco (produção) | PostgreSQL / Neon (`@neondatabase/serverless`) |
 | Mídia (local) | Disco em `public/uploads/` |
-| Mídia (produção) | Vercel Blob (`@vercel/blob`), incluindo client upload para arquivos grandes |
+| Mídia (Hostinger) | Disco local em `public/uploads/` quando `BLOB_READ_WRITE_TOKEN` estiver vazio |
+| Mídia (Vercel) | Vercel Blob (`@vercel/blob`), incluindo client upload para arquivos grandes |
 | Autenticação | JWT em cookie **HttpOnly** + `bcryptjs` |
 | Deploy | Vercel (`api/index.js` + `vercel.json`) ou qualquer host Node |
 
@@ -90,7 +91,7 @@ Roteiro manual recomendado após qualquer alteração:
    - `DATABASE_URL` — string de conexão Neon
    - `JWT_SECRET` — segredo forte e exclusivo
    - `CORS_ORIGIN` — domínio público do site
-   - `BLOB_READ_WRITE_TOKEN` — token do Blob Store (criado ao conectar o store)
+   - `BLOB_READ_WRITE_TOKEN` — necessário somente para usar Vercel Blob; na Hostinger pode ficar vazio
 3. `npm run migrate:vercel` para migrar dados/mídia do SQLite local (opcional).
 4. `ADMIN_EMAIL=... ADMIN_PASSWORD=... npm run admin:create` com `DATABASE_URL` apontando para o Neon.
 5. Deploy. A função serverless é `api/index.js`, que reexporta `server.js`.
@@ -110,7 +111,7 @@ Use um proxy reverso com HTTPS (o cookie de sessão usa `Secure` em produção).
 | --- | --- | --- |
 | `JWT_SECRET` | env | obrigatório em produção; o servidor falha ao iniciar sem ele na Vercel |
 | `DATABASE_URL` | env | sem ela o app usa SQLite local |
-| `BLOB_READ_WRITE_TOKEN` | env | necessário para upload de mídia em produção |
+| `BLOB_READ_WRITE_TOKEN` | env | Hostinger: opcional; Vercel: necessário para mídia em Blob |
 | `CORS_ORIGIN` | env | domínio público; sem ela vale a lista padrão em `server.js` |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | env (uso pontual) | criação do corretor via `npm run admin:create` |
 | Domínio canônico | `public/index.html`, `public/robots.txt`, `public/sitemap.xml` | hoje aponta para `imobiliaria-fabiano-oficial.vercel.app`; troque ao usar domínio próprio |
@@ -122,7 +123,7 @@ Use um proxy reverso com HTTPS (o cookie de sessão usa `Secure` em produção).
 - **WhatsApp**: links diretos `wa.me/5521991822134` (botão flutuante e redes sociais).
 - **Instagram / Facebook**: links do corretor no cartão de apresentação.
 - **Formulário de contato**: grava lead real via `POST /api/leads` (persistido no banco e visível no painel). Não envia e-mail — para notificação por e-mail é necessário integrar um serviço externo (SMTP/Resend) — **[NÃO CONFIGURADO]**.
-- **Vercel Blob**: upload de fotos (até 5 MB) e vídeos (até 50 MB), com client upload para arquivos maiores que o limite de request das Functions.
+- **Mídia**: Hostinger usa `public/uploads/` por padrão; Vercel usa Vercel Blob (fotos até 5 MB e vídeos até 50 MB), com client upload para arquivos grandes.
 - **Vídeos por URL**: aceita MP4/WebM/MOV diretos e links de YouTube/Vimeo (embed).
 
 ## Estrutura

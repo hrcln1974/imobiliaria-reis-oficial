@@ -1,19 +1,14 @@
-## V6.2.2 — Correção do cadastro/edição e compatibilidade das mídias
 
-- Novo imóvel sempre limpa o estado de edição anterior (`imovelEditandoId`).
-- Botão “Limpar Formulário” passa a iniciar explicitamente um novo cadastro.
-- Validação no painel impede cadastro sem campos obrigatórios e sem preço válido.
-- Compatibilidade PostgreSQL: garante colunas de `imovel_midias` em bancos criados por versões anteriores.
-- Melhor tratamento de erros ao carregar/excluir fotos, com diagnóstico no log do servidor.
-- Mantidas as correções da V6.2.1 para exclusão em PostgreSQL/Neon.
+## 6.2.3 — Correção Hostinger + mídia + PostgreSQL
 
-## V6.2.1 — Correção de exclusão em PostgreSQL/Neon
-
-- Corrigido o adaptador PostgreSQL para usar `rowCount` nas operações `UPDATE`/`DELETE`.
-- Corrigida a exclusão de fotos em produção, que podia retornar `changes = 0` mesmo quando o registro era removido.
-- Adicionada exclusão definitiva de imóvel com remoção das mídias associadas.
-- Dashboard agora oferece `Excluir` para imóveis inativos, mantendo `Desativar` como exclusão lógica para imóveis ativos.
-
+- Corrige o upload de fotos/vídeos na Hostinger: HTTPS não força mais Vercel Blob.
+- Hostinger usa `public/uploads/` quando `BLOB_READ_WRITE_TOKEN` não está configurado.
+- Vercel continua usando Vercel Blob quando disponível.
+- Adiciona `/api/config` para o painel selecionar automaticamente o fluxo de upload.
+- Corrige operações `UPDATE`/`DELETE` no adaptador PostgreSQL/Neon.
+- Mantém exclusão definitiva de imóvel com limpeza das mídias associadas.
+- Corrige edição e limpeza do formulário para não restaurar dados antigos.
+- Adiciona ação de exclusão definitiva para imóveis inativos no painel.
 # CHANGELOG
 
 ## [6.2.0] — Auditoria técnica, segurança e organização

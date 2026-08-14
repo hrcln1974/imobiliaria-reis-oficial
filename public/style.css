@@ -261,9 +261,7 @@ body {
 
 .redes-sociais {
   display: flex;
-  flex-wrap: wrap;
   gap: 15px;
-  align-items: center;
 }
 
 .rede-icon {
@@ -288,11 +286,6 @@ body {
 .rede-icon.whatsapp {
   background: white;
   color: #25d366;
-}
-
-.rede-icon.youtube {
-  background: #ff0000;
-  color: white;
 }
 
 .rede-icon:hover {
@@ -1224,5 +1217,3 @@ button.close-imagem {
 /* Evita rolagem horizontal em qualquer viewport */
 html, body { max-width: 100%; overflow-x: hidden; }
 img, video, iframe { max-width: 100%; }
-
-

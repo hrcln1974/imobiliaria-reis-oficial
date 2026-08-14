@@ -4,6 +4,16 @@ let imovelEditandoId = null;
 let imoveisPainelCache = [];
 let leadsPainelCache = [];
 let imovelAtualGerenciandoImagens = null;
+let mediaConfig = { armazenamentoMidia: 'local', uploadDiretoBlob: false, maxFotoMB: 5, maxVideoMB: 50 };
+
+async function carregarConfiguracaoMidia() {
+  try {
+    const res = await fetch(`${API_BASE}/config`, { credentials: 'same-origin', cache: 'no-store' });
+    if (res.ok) mediaConfig = { ...mediaConfig, ...(await res.json()) };
+  } catch (e) {
+    console.warn('Não foi possível obter a configuração de mídia; usando upload pelo servidor.', e);
+  }
+}
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
@@ -72,7 +82,7 @@ function abrirSecao(secaoId, navElement) {
   if (secaoId === 'inicio') carregarDashboard();
   if (secaoId === 'imoveis') carregarImoveis();
   if (secaoId === 'leads') carregarLeads();
-  if (secaoId === 'novo-imovel') prepararNovoImovel();
+  if (secaoId === 'novo-imovel' && !imovelEditandoId) prepararNovoImovel();
 }
 
 async function carregarDashboard() {
@@ -125,7 +135,7 @@ function filtrarImoveisPainel() {
       <td class="table-actions">
         <button class="btn btn-light btn-compact" onclick="editarImovel(${i.id})">✏️ Editar</button>
         <button class="btn btn-light btn-compact" onclick="abrirGerenciadorImagens(${i.id})">📷 Mídias</button>
-        ${Number(i.ativo) ? '<button class="btn btn-danger btn-compact" onclick="deletarImovel('+i.id+')">Desativar</button>' : '<button class="btn btn-success btn-compact" onclick="reativarImovel('+i.id+')">Reativar</button><button class="btn btn-danger btn-compact" onclick="excluirImovelDefinitivo('+i.id+')">🗑️ Excluir</button>'}
+        ${Number(i.ativo) ? '<button class="btn btn-danger btn-compact" onclick="deletarImovel('+i.id+')">Desativar</button>' : '<button class="btn btn-success btn-compact" onclick="reativarImovel('+i.id+')">Reativar</button><button class="btn btn-danger btn-compact" onclick="excluirImovelDefinitivo('+i.id+')">🗑️ Excluir definitivo</button>'}
       </td>
     </tr>`).join('') || '<tr><td colspan="7" class="table-empty">Nenhum imóvel encontrado.</td></tr>';
 }
@@ -169,28 +179,6 @@ async function carregarPreviewExistentes(id) {
 document.getElementById('formNovoImovel')?.addEventListener('submit', async e => {
   e.preventDefault();
   const msg = document.getElementById('msgFormImovel'); const dados = coletarDadosImovel(); const editando = Boolean(imovelEditandoId);
-  const obrigatorios = [
-    ['titulo', dados.titulo, 'Título do imóvel'],
-    ['tipo', dados.tipo, 'Tipo de imóvel'],
-    ['operacao', dados.operacao, 'Operação'],
-    ['descricao', dados.descricao, 'Descrição completa'],
-    ['endereco', dados.endereco, 'Endereço'],
-    ['bairro', dados.bairro, 'Bairro'],
-    ['cidade', dados.cidade, 'Cidade']
-  ];
-  const faltante = obrigatorios.find(([, valor]) => !String(valor ?? '').trim());
-  if (faltante) {
-    msg.className='form-message error';
-    msg.textContent=`❌ Preencha o campo obrigatório: ${faltante[2]}.`;
-    document.getElementById(faltante[0])?.focus();
-    return;
-  }
-  if (!Number.isFinite(dados.preco) || dados.preco < 0) {
-    msg.className='form-message error';
-    msg.textContent='❌ Informe um preço válido.';
-    document.getElementById('preco')?.focus();
-    return;
-  }
   msg.className='form-message info'; msg.textContent=editando?'⏳ Salvando alterações...':'⏳ Cadastrando imóvel...';
   try {
     const res = await apiFetch(editando ? `${API_BASE}/imoveis/${imovelEditandoId}` : `${API_BASE}/imoveis`, { method:editando?'PUT':'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(dados) });
@@ -199,7 +187,7 @@ document.getElementById('formNovoImovel')?.addEventListener('submit', async e =>
     const fotos=Array.from(document.getElementById('fotosImovel')?.files || []);
 
     if(fotos.length && idImovel){
-      const useDirectBlob = location.hostname.endsWith('vercel.app') || location.protocol === 'https:';
+      const useDirectBlob = Boolean(mediaConfig.uploadDiretoBlob);
 
       for(let i=0;i<fotos.length;i++){
         const f=fotos[i];
@@ -237,8 +225,6 @@ document.getElementById('btnGerenciarFotosEdicao')?.addEventListener('click',()=
 async function editarImovel(id){
   try{
     const res=await apiFetch(`${API_BASE}/imoveis/${id}`); const data=await res.json(); if(!res.ok||!data.imovel) throw new Error(data.erro||'Imóvel não encontrado');
-    // Abre o formulário como um novo estado e, só depois, vincula o ID em edição.
-    // Isso evita que a rotina de limpeza de “Novo” apague os dados carregados.
     abrirSecao('novo-imovel');
     imovelEditandoId=id;
     preencherFormularioImovel(data.imovel);
@@ -267,6 +253,7 @@ async function excluirImovelDefinitivo(id){
     const d=await res.json();
     if(!res.ok) throw new Error(d.erro||'Falha ao excluir imóvel');
     alert('✅ '+(d.mensagem||'Imóvel excluído definitivamente.'));
+    if(Number(imovelEditandoId)===Number(id)) prepararNovoImovel();
     await carregarImoveis();
     await carregarDashboard();
   }catch(e){ if(e.message!=='UNAUTHORIZED') alert('❌ '+e.message); }
@@ -335,7 +322,6 @@ async function carregarListaImagens(id){
   try{
     const res=await apiFetch(`${API_BASE}/imoveis/${id}/imagens`);
     const d=await res.json();
-    if(!res.ok) throw new Error(d.erro || 'Falha ao carregar imagens');
     const imagens=d.imagens||[];
     const c=document.getElementById('listaImagens');
     c.innerHTML=imagens.length?imagens.map(img=>
@@ -347,11 +333,7 @@ async function carregarListaImagens(id){
         </div>
       </div>`).join(''):
       '<p style="grid-column:1/-1;text-align:center;color:#64748b;padding:25px;">Nenhuma foto cadastrada.</p>';
-  }catch(e){
-    console.error('Erro ao carregar imagens:', e);
-    const c=document.getElementById('listaImagens');
-    if(c) c.innerHTML='<p style="grid-column:1/-1;text-align:center;color:#b91c1c;padding:25px;">❌ '+escapeHtml(e.message || 'Erro ao buscar imagens')+'</p>';
-  }
+  }catch(e){console.error(e);}
 }
 
 async function carregarListaVideos(id){
@@ -381,7 +363,7 @@ async function enviarFotosModal(){
   try{
     const files=Array.from(input.files);
     msg.className='form-message info';msg.textContent=`⏳ Enviando ${files.length} foto(s)...`;
-    const useDirect=location.hostname.endsWith('vercel.app') || location.protocol === 'https:';
+    const useDirect = Boolean(mediaConfig.uploadDiretoBlob);
     if(useDirect){
       try{
         for(let i=0;i<files.length;i++){
@@ -496,4 +478,4 @@ document.getElementById('modalImagens')?.addEventListener('click',e=>{if(e.targe
 document.getElementById('modalLead')?.addEventListener('click',e=>{if(e.target.id==='modalLead')fecharModalLead();});
 document.getElementById('fotosImovel')?.addEventListener('change',function(){const grid=document.getElementById('previewFotos');if(!grid)return;Array.from(this.files||[]).forEach(file=>{if(!file.type.startsWith('image/'))return;const reader=new FileReader();reader.onload=e=>{const item=document.createElement('div');item.className='photo-preview';item.innerHTML=`<img src="${e.target.result}" alt="Pré-visualização"><span>${escapeHtml(file.name)}</span>`;grid.appendChild(item);};reader.readAsDataURL(file);});});
 
-document.addEventListener('DOMContentLoaded',()=>{atualizarData();validarSessaoInicial().then(ok=>{if(ok)carregarDashboard();});});
+document.addEventListener('DOMContentLoaded',async()=>{atualizarData();await carregarConfiguracaoMidia();const ok=await validarSessaoInicial();if(ok)carregarDashboard();});

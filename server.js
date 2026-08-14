@@ -65,7 +65,10 @@ app.use((req, res, next) => {
 // O dashboard é protegido por cookie HttpOnly; os demais arquivos públicos continuam sendo servidos abaixo.
 
 // Armazenamento: disco local na V5.2/ambiente local; Vercel usa Vercel Blob.
-const USE_BLOB = db.mode === 'postgres';
+// PostgreSQL/Neon não implica Vercel Blob.
+// Na Hostinger (Node tradicional), sem BLOB_READ_WRITE_TOKEN, usamos disco local persistente.
+// Na Vercel, quando o Blob está disponível, usamos Blob para evitar filesystem efêmero.
+const USE_BLOB = db.mode === 'postgres' && (IS_VERCEL || Boolean(process.env.BLOB_READ_WRITE_TOKEN));
 // Diretórios de mídia local. Em Vercel/Blob não são usados (filesystem read-only).
 if (!IS_VERCEL && !USE_BLOB) {
   for (const pasta of ['imagens', 'videos']) {
@@ -494,47 +497,37 @@ app.delete('/api/imoveis/:id', verificarCorretor, (req, res) => {
   });
 });
 
-// Exclusão definitiva: remove o imóvel, suas mídias no banco e tenta remover
-// também os arquivos físicos/Vercel Blob associados. A rota fica separada da
-// desativação lógica para evitar apagar anúncios por engano.
+// Exclusão definitiva: remove o imóvel, as mídias no banco e os arquivos associados.
+// É separada da desativação lógica para evitar apagar anúncios por engano.
 app.post('/api/imoveis/:id/excluir-definitivo', verificarCorretor, (req, res) => {
   const { id } = req.params;
-
   db.get('SELECT id, titulo FROM imoveis WHERE id = ?', [id], (err, imovel) => {
     if (err) return res.status(500).json({ erro: 'Erro ao localizar imóvel' });
     if (!imovel) return res.status(404).json({ erro: 'Imóvel não encontrado' });
 
-    db.all(
-      'SELECT id, arquivo FROM imovel_midias WHERE imovel_id = ?',
-      [id],
-      (mediaErr, midias) => {
-        if (mediaErr) return res.status(500).json({ erro: 'Erro ao localizar mídias do imóvel' });
+    db.all('SELECT id, arquivo FROM imovel_midias WHERE imovel_id = ?', [id], (mediaErr, midias) => {
+      if (mediaErr) return res.status(500).json({ erro: 'Erro ao localizar mídias do imóvel' });
+      db.run('DELETE FROM imovel_midias WHERE imovel_id = ?', [id], mediaDeleteErr => {
+        if (mediaDeleteErr) return res.status(500).json({ erro: 'Erro ao remover mídias do imóvel: ' + mediaDeleteErr.message });
+        db.run('DELETE FROM imoveis WHERE id = ?', [id], async function(deleteErr) {
+          if (deleteErr) return res.status(500).json({ erro: 'Erro ao excluir imóvel: ' + deleteErr.message });
+          if (this.changes !== 1) return res.status(404).json({ erro: 'Imóvel não encontrado' });
 
-        db.run('DELETE FROM imovel_midias WHERE imovel_id = ?', [id], function(mediaDeleteErr) {
-          if (mediaDeleteErr) return res.status(500).json({ erro: 'Erro ao remover mídias do imóvel: ' + mediaDeleteErr.message });
-
-          db.run('DELETE FROM imoveis WHERE id = ?', [id], async function(deleteErr) {
-            if (deleteErr) return res.status(500).json({ erro: 'Erro ao excluir imóvel: ' + deleteErr.message });
-            if (this.changes !== 1) return res.status(404).json({ erro: 'Imóvel não encontrado' });
-
-            let falhasArquivos = 0;
-            for (const media of (midias || [])) {
-              try { await removeStoredAsset(media.arquivo); } catch (_) { falhasArquivos += 1; }
-            }
-
-            console.log(`[IMOVEL] Imóvel ${id} excluído definitivamente (${midias?.length || 0} mídias)`);
-            res.json({
-              mensagem: falhasArquivos
-                ? 'Imóvel excluído do banco. Algumas mídias não puderam ser removidas do armazenamento.'
-                : 'Imóvel e suas mídias excluídos definitivamente com sucesso.',
-              id: Number(id),
-              midiasExcluidas: (midias || []).length,
-              falhasArquivos
-            });
+          let falhasArquivos = 0;
+          for (const media of (midias || [])) {
+            try { await removeStoredAsset(media.arquivo); } catch (_) { falhasArquivos += 1; }
+          }
+          res.json({
+            mensagem: falhasArquivos
+              ? 'Imóvel excluído do banco. Algumas mídias não puderam ser removidas do armazenamento.'
+              : 'Imóvel e suas mídias excluídos definitivamente com sucesso.',
+            id: Number(id),
+            midiasExcluidas: (midias || []).length,
+            falhasArquivos
           });
         });
-      }
-    );
+      });
+    });
   });
 });
 
@@ -550,7 +543,25 @@ app.get('/api/auth/check', verificarCorretor, (req, res) => {
 
 // Health check para diagnóstico local
 app.get('/api/health', (req, res) => {
-  res.json({ ok: true, servico: 'fabiano-reis-imoveis', timestamp: new Date().toISOString() });
+  res.json({
+    ok: true,
+    servico: 'fabiano-reis-imoveis',
+    timestamp: new Date().toISOString(),
+    banco: db.mode,
+    armazenamentoMidia: USE_BLOB ? 'blob' : 'local',
+    uploadDiretoBlob: Boolean(IS_VERCEL && USE_BLOB)
+  });
+});
+
+// Configuração pública mínima usada pelo painel para escolher o fluxo de upload.
+// Não expõe segredos nem credenciais.
+app.get('/api/config', (req, res) => {
+  res.json({
+    armazenamentoMidia: USE_BLOB ? 'blob' : 'local',
+    uploadDiretoBlob: Boolean(IS_VERCEL && USE_BLOB),
+    maxFotoMB: 5,
+    maxVideoMB: 50
+  });
 });
 
 // ============= ROTAS DE UPLOAD =============
@@ -1014,10 +1025,7 @@ app.get('/api/imoveis/:id/imagens', (req, res) => {
     "SELECT id, imovel_id, arquivo, url_externa, ordem, principal, criado_em FROM imovel_midias WHERE imovel_id = ? AND tipo = 'imagem' ORDER BY ordem ASC, criado_em DESC",
     [id],
     (err, imagens) => {
-      if (err) {
-        console.error('[IMAGENS] Erro ao buscar imagens:', err);
-        return res.status(500).json({ erro: 'Erro ao buscar imagens no banco de dados' });
-      }
+      if (err) return res.status(500).json({ erro: 'Erro ao buscar imagens' });
       res.json({ imagens: imagens || [] });
     }
   );
@@ -1128,10 +1136,7 @@ app.delete('/api/imoveis/:imovelId/imagens/:imagemId', verificarCorretor, (req, 
      WHERE id = ? AND imovel_id = ? AND tipo = 'imagem'`,
     [imagemId, imovelId],
     (err, imagem) => {
-      if (err) {
-        console.error('[MÍDIA] Erro ao buscar imagem para exclusão:', err);
-        return res.status(500).json({ erro: 'Erro ao buscar imagem no banco de dados' });
-      }
+      if (err) return res.status(500).json({ erro: 'Erro ao buscar imagem' });
       if (!imagem) return res.status(404).json({ erro: 'Foto não encontrada neste imóvel' });
 
       db.run(
@@ -1230,10 +1235,7 @@ app.post('/api/imoveis/:imovelId/imagens/:imagemId/excluir', verificarCorretor, 
      WHERE id = ? AND imovel_id = ? AND tipo = 'imagem'`,
     [imagemId, imovelId],
     (err, imagem) => {
-      if (err) {
-        console.error('[MÍDIA] Erro ao buscar imagem para exclusão:', err);
-        return res.status(500).json({ erro: 'Erro ao buscar imagem no banco de dados' });
-      }
+      if (err) return res.status(500).json({ erro: 'Erro ao buscar imagem' });
       if (!imagem) return res.status(404).json({ erro: 'Foto não encontrada neste imóvel' });
 
       db.run(
