@@ -108,22 +108,22 @@ class PostgresCompat {
     return run;
   }
 
-  _callback(fn, err, value) {
+  _callback(fn, err, value, context) {
     if (typeof fn !== 'function') return;
-    setImmediate(() => fn(err || null, value));
+    setImmediate(() => fn.call(context, err || null, value));
   }
 
   get(sql, params, callback) {
     if (typeof params === 'function') { callback = params; params = []; }
     this._enqueue(() => this._query(sql, params || []))
-      .then(rows => this._callback(callback, null, rows[0]))
+      .then(rows => this._callback(callback, null, rows[0], undefined))
       .catch(err => this._callback(callback, err));
   }
 
   all(sql, params, callback) {
     if (typeof params === 'function') { callback = params; params = []; }
     this._enqueue(() => this._query(sql, params || []))
-      .then(rows => this._callback(callback, null, rows))
+      .then(rows => this._callback(callback, null, rows, undefined))
       .catch(err => this._callback(callback, err));
   }
 
@@ -142,7 +142,7 @@ class PostgresCompat {
           changes: rows.length,
           lastID: rows[0] && rows[0].id != null ? Number(rows[0].id) : undefined
         };
-        this._callback(callback, null, ctx);
+        this._callback(callback, null, ctx, ctx);
       })
       .catch(err => this._callback(callback, err));
   }

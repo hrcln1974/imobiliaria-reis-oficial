@@ -1,3 +1,10 @@
+# V6.2.4 — Correção definitiva de exclusão de fotos
+
+- Corrigido o contexto `this` do adaptador PostgreSQL/Neon para callbacks compatíveis com sqlite3.
+- Corrigida a verificação de alterações nas exclusões de mídias.
+- Melhorado o diagnóstico de erros ao buscar/excluir imagens.
+- Mantido o armazenamento local na Hostinger quando `BLOB_READ_WRITE_TOKEN` não está configurado.
+
 
 ## 6.2.3 — Correção Hostinger + mídia + PostgreSQL
 

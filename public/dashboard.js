@@ -455,7 +455,7 @@ async function deletarImagem(imovelId,imagemId){
   try{
     const res=await apiFetch(`${API_BASE}/imoveis/${imovelId}/imagens/${imagemId}/excluir`,{method:'POST'});
     const d=await res.json();
-    if(!res.ok)throw new Error(d.erro||'Falha ao excluir foto');
+    if(!res.ok)throw new Error(d.erro||`Falha ao excluir foto (HTTP ${res.status})`);
     await carregarListaImagens(imovelId);
     if(imovelEditandoId===imovelId)await carregarPreviewExistentes(imovelId);
     const msg=document.getElementById('msgImagens');

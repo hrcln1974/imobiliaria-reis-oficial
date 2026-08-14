@@ -1136,7 +1136,10 @@ app.delete('/api/imoveis/:imovelId/imagens/:imagemId', verificarCorretor, (req, 
      WHERE id = ? AND imovel_id = ? AND tipo = 'imagem'`,
     [imagemId, imovelId],
     (err, imagem) => {
-      if (err) return res.status(500).json({ erro: 'Erro ao buscar imagem' });
+      if (err) {
+        console.error(`[MÍDIA] Erro ao buscar imagem ${imagemId} do imóvel ${imovelId}:`, err);
+        return res.status(500).json({ erro: 'Erro ao buscar imagem: ' + (err.message || 'falha no banco de dados') });
+      }
       if (!imagem) return res.status(404).json({ erro: 'Foto não encontrada neste imóvel' });
 
       db.run(
@@ -1144,7 +1147,8 @@ app.delete('/api/imoveis/:imovelId/imagens/:imagemId', verificarCorretor, (req, 
         [imagemId, imovelId],
         function(deleteErr) {
           if (deleteErr) return res.status(500).json({ erro: 'Erro ao excluir foto: ' + deleteErr.message });
-          if (this.changes !== 1) return res.status(404).json({ erro: 'Foto não encontrada neste imóvel' });
+          const alteracoes = arguments.length > 1 && arguments[1] && typeof arguments[1].changes === 'number' ? arguments[1].changes : this.changes;
+          if (alteracoes !== 1) return res.status(404).json({ erro: 'Foto não encontrada neste imóvel' });
 
           console.log(`[MÍDIA] Foto ${imagemId} excluída do imóvel ${imovelId}`);
 
@@ -1235,7 +1239,10 @@ app.post('/api/imoveis/:imovelId/imagens/:imagemId/excluir', verificarCorretor, 
      WHERE id = ? AND imovel_id = ? AND tipo = 'imagem'`,
     [imagemId, imovelId],
     (err, imagem) => {
-      if (err) return res.status(500).json({ erro: 'Erro ao buscar imagem' });
+      if (err) {
+        console.error(`[MÍDIA] Erro ao buscar imagem ${imagemId} do imóvel ${imovelId}:`, err);
+        return res.status(500).json({ erro: 'Erro ao buscar imagem: ' + (err.message || 'falha no banco de dados') });
+      }
       if (!imagem) return res.status(404).json({ erro: 'Foto não encontrada neste imóvel' });
 
       db.run(
@@ -1243,7 +1250,8 @@ app.post('/api/imoveis/:imovelId/imagens/:imagemId/excluir', verificarCorretor, 
         [imagemId, imovelId],
         function(deleteErr) {
           if (deleteErr) return res.status(500).json({ erro: 'Erro ao excluir foto: ' + deleteErr.message });
-          if (this.changes !== 1) return res.status(404).json({ erro: 'Foto não encontrada neste imóvel' });
+          const alteracoes = arguments.length > 1 && arguments[1] && typeof arguments[1].changes === 'number' ? arguments[1].changes : this.changes;
+          if (alteracoes !== 1) return res.status(404).json({ erro: 'Foto não encontrada neste imóvel' });
 
           console.log(`[MÍDIA] Foto ${imagemId} excluída do imóvel ${imovelId}`);
 
