@@ -134,10 +134,17 @@ class PostgresCompat {
     const query = isInsert && !/\bRETURNING\b/i.test(original)
       ? `${original} RETURNING id`
       : original;
-    this._enqueue(() => this._query(query, params || []))
-      .then(rows => {
+
+    // IMPORTANT: Neon returns only the row array by default. For UPDATE/DELETE
+    // that array is empty even when one row was actually changed/deleted.
+    // The old adapter therefore reported changes=0 in production, causing
+    // delete/update routes to behave as if the record did not exist.
+    this._enqueue(() => this.sql.query(convertPlaceholders(query), params || [], { fullResults: true }))
+      .then(result => {
+        const rows = Array.isArray(result) ? result : (result.rows || []);
+        const changes = Array.isArray(result) ? rows.length : Number(result.rowCount || 0);
         const ctx = {
-          changes: rows.length,
+          changes,
           lastID: rows[0] && rows[0].id != null ? Number(rows[0].id) : undefined
         };
         this._callback(callback, null, ctx);

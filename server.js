@@ -494,6 +494,50 @@ app.delete('/api/imoveis/:id', verificarCorretor, (req, res) => {
   });
 });
 
+// Exclusão definitiva: remove o imóvel, suas mídias no banco e tenta remover
+// também os arquivos físicos/Vercel Blob associados. A rota fica separada da
+// desativação lógica para evitar apagar anúncios por engano.
+app.post('/api/imoveis/:id/excluir-definitivo', verificarCorretor, (req, res) => {
+  const { id } = req.params;
+
+  db.get('SELECT id, titulo FROM imoveis WHERE id = ?', [id], (err, imovel) => {
+    if (err) return res.status(500).json({ erro: 'Erro ao localizar imóvel' });
+    if (!imovel) return res.status(404).json({ erro: 'Imóvel não encontrado' });
+
+    db.all(
+      'SELECT id, arquivo FROM imovel_midias WHERE imovel_id = ?',
+      [id],
+      (mediaErr, midias) => {
+        if (mediaErr) return res.status(500).json({ erro: 'Erro ao localizar mídias do imóvel' });
+
+        db.run('DELETE FROM imovel_midias WHERE imovel_id = ?', [id], function(mediaDeleteErr) {
+          if (mediaDeleteErr) return res.status(500).json({ erro: 'Erro ao remover mídias do imóvel: ' + mediaDeleteErr.message });
+
+          db.run('DELETE FROM imoveis WHERE id = ?', [id], async function(deleteErr) {
+            if (deleteErr) return res.status(500).json({ erro: 'Erro ao excluir imóvel: ' + deleteErr.message });
+            if (this.changes !== 1) return res.status(404).json({ erro: 'Imóvel não encontrado' });
+
+            let falhasArquivos = 0;
+            for (const media of (midias || [])) {
+              try { await removeStoredAsset(media.arquivo); } catch (_) { falhasArquivos += 1; }
+            }
+
+            console.log(`[IMOVEL] Imóvel ${id} excluído definitivamente (${midias?.length || 0} mídias)`);
+            res.json({
+              mensagem: falhasArquivos
+                ? 'Imóvel excluído do banco. Algumas mídias não puderam ser removidas do armazenamento.'
+                : 'Imóvel e suas mídias excluídos definitivamente com sucesso.',
+              id: Number(id),
+              midiasExcluidas: (midias || []).length,
+              falhasArquivos
+            });
+          });
+        });
+      }
+    );
+  });
+});
+
 app.post('/api/logout', (req, res) => {
   clearAuthCookie(res);
   res.json({ mensagem: 'Sessão encerrada' });

@@ -125,7 +125,7 @@ function filtrarImoveisPainel() {
       <td class="table-actions">
         <button class="btn btn-light btn-compact" onclick="editarImovel(${i.id})">✏️ Editar</button>
         <button class="btn btn-light btn-compact" onclick="abrirGerenciadorImagens(${i.id})">📷 Mídias</button>
-        ${Number(i.ativo) ? '<button class="btn btn-danger btn-compact" onclick="deletarImovel('+i.id+')">Desativar</button>' : '<button class="btn btn-success btn-compact" onclick="reativarImovel('+i.id+')">Reativar</button>'}
+        ${Number(i.ativo) ? '<button class="btn btn-danger btn-compact" onclick="deletarImovel('+i.id+')">Desativar</button>' : '<button class="btn btn-success btn-compact" onclick="reativarImovel('+i.id+')">Reativar</button><button class="btn btn-danger btn-compact" onclick="excluirImovelDefinitivo('+i.id+')">🗑️ Excluir</button>'}
       </td>
     </tr>`).join('') || '<tr><td colspan="7" class="table-empty">Nenhum imóvel encontrado.</td></tr>';
 }
@@ -226,6 +226,20 @@ async function deletarImovel(id){
 }
 async function reativarImovel(id){
   try{ const res=await apiFetch(`${API_BASE}/imoveis/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ativo:1})}); const d=await res.json(); if(!res.ok) throw new Error(d.erro||'Falha'); await carregarImoveis(); await carregarDashboard(); }catch(e){if(e.message!=='UNAUTHORIZED') alert(e.message);}
+}
+
+async function excluirImovelDefinitivo(id){
+  const imovel=imoveisPainelCache.find(i=>Number(i.id)===Number(id));
+  const titulo=imovel?.titulo || `ID ${id}`;
+  if(!confirm(`EXCLUSÃO DEFINITIVA\n\nImóvel: ${titulo}\n\nIsso removerá o imóvel e todas as fotos/vídeos associados. Esta ação não pode ser desfeita.\n\nDeseja continuar?`)) return;
+  try{
+    const res=await apiFetch(`${API_BASE}/imoveis/${id}/excluir-definitivo`,{method:'POST'});
+    const d=await res.json();
+    if(!res.ok) throw new Error(d.erro||'Falha ao excluir imóvel');
+    alert('✅ '+(d.mensagem||'Imóvel excluído definitivamente.'));
+    await carregarImoveis();
+    await carregarDashboard();
+  }catch(e){ if(e.message!=='UNAUTHORIZED') alert('❌ '+e.message); }
 }
 
 // LEADS

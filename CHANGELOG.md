@@ -1,3 +1,10 @@
+## V6.2.1 — Correção de exclusão em PostgreSQL/Neon
+
+- Corrigido o adaptador PostgreSQL para usar `rowCount` nas operações `UPDATE`/`DELETE`.
+- Corrigida a exclusão de fotos em produção, que podia retornar `changes = 0` mesmo quando o registro era removido.
+- Adicionada exclusão definitiva de imóvel com remoção das mídias associadas.
+- Dashboard agora oferece `Excluir` para imóveis inativos, mantendo `Desativar` como exclusão lógica para imóveis ativos.
+
 # CHANGELOG
 
 ## [6.2.0] — Auditoria técnica, segurança e organização
