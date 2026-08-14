@@ -355,39 +355,109 @@ async function carregarListaVideos(id){
   }catch(e){console.error(e);}
 }
 
-async function enviarFotosModal(){
-  const input=document.getElementById('fotosModal'),msg=document.getElementById('msgImagens');
-  if(!input?.files?.length||!imovelAtualGerenciandoImagens){
-    msg.className='form-message error';msg.textContent='❌ Selecione pelo menos uma foto.';return;
-  }
-  try{
-    const files=Array.from(input.files);
-    msg.className='form-message info';msg.textContent=`⏳ Enviando ${files.length} foto(s)...`;
-    const useDirect = Boolean(mediaConfig.uploadDiretoBlob);
-    if(useDirect){
-      try{
-        for(let i=0;i<files.length;i++){
-          const f=files[i];
-          msg.textContent=`⏳ Enviando foto ${i+1}/${files.length}...`;
-          const blob=await uploadArquivoDiretoBlob(f,'imagens',p=>{msg.textContent=`⏳ Enviando foto ${i+1}/${files.length}: ${p}%`;});
-          const reg=await apiFetch(`${API_BASE}/imoveis/${imovelAtualGerenciandoImagens}/imagens/blob`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({arquivo:blob.url})});
-          const rd=await reg.json();if(!reg.ok)throw new Error(rd.erro||'Falha ao registrar foto');
-        }
-      }catch(blobErr){
-        // Em ambiente local sem Blob, mantém o fluxo V5.2 por upload tradicional.
-        if(location.hostname.includes('vercel.app') || files.some(f=>f.size>4.5*1024*1024)) throw blobErr;
-        const fd=new FormData();files.forEach(f=>fd.append('imagens',f));
-        const res=await apiFetch(`${API_BASE}/imoveis/${imovelAtualGerenciandoImagens}/fotos`,{method:'POST',body:fd});
-        const d=await res.json();if(!res.ok)throw new Error(d.erro||'Falha no upload');
-      }
-    }else{
-      const fd=new FormData();files.forEach(f=>fd.append('imagens',f));
-      const res=await apiFetch(`${API_BASE}/imoveis/${imovelAtualGerenciandoImagens}/fotos`,{method:'POST',body:fd});
-      const d=await res.json();if(!res.ok)throw new Error(d.erro||'Falha no upload');
+async function enviarFotosModal() {
+  const input = document.getElementById('fotosModal');
+  const msg = document.getElementById('msgImagens');
+
+  if (!input?.files?.length) {
+    if (msg) {
+      msg.className = 'form-message error';
+      msg.textContent = '❌ Selecione pelo menos uma foto.';
     }
-    input.value='';await carregarListaImagens(imovelAtualGerenciandoImagens);
-    msg.className='form-message success';msg.textContent='✅ Fotos enviadas com sucesso!';
-  }catch(e){if(e.message!=='UNAUTHORIZED'){msg.className='form-message error';msg.textContent='❌ '+e.message;}}
+    return;
+  }
+
+  if (!imovelAtualGerenciandoImagens) {
+    if (msg) {
+      msg.className = 'form-message error';
+      msg.textContent = '❌ Nenhum imóvel selecionado.';
+    }
+    return;
+  }
+
+  try {
+    const files = Array.from(input.files);
+
+    if (files.length > 12) {
+      throw new Error('Você pode enviar no máximo 12 fotos por vez.');
+    }
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+
+      if (!file.type.startsWith('image/')) {
+        throw new Error(
+          `"${file.name}" não é uma imagem válida.`
+        );
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error(
+          `"${file.name}" ultrapassa o limite de 5 MB.`
+        );
+      }
+
+      if (msg) {
+        msg.className = 'form-message info';
+        msg.textContent =
+          `⏳ Enviando foto ${i + 1} de ${files.length}...`;
+      }
+
+      const formData = new FormData();
+      formData.append('imagens', file);
+
+      const res = await apiFetch(
+        `${API_BASE}/imoveis/${imovelAtualGerenciandoImagens}/fotos`,
+        {
+          method: 'POST',
+          body: formData
+        }
+      );
+
+      let data = {};
+
+      try {
+        data = await res.json();
+      } catch (_) {}
+
+      if (!res.ok) {
+        throw new Error(
+          data.erro ||
+          `Falha no upload da foto ${i + 1}.`
+        );
+      }
+    }
+
+    input.value = '';
+
+    await carregarListaImagens(
+      imovelAtualGerenciandoImagens
+    );
+
+    if (Number(imovelEditandoId) ===
+        Number(imovelAtualGerenciandoImagens)) {
+      await carregarPreviewExistentes(
+        imovelAtualGerenciandoImagens
+      );
+    }
+
+    if (msg) {
+      msg.className = 'form-message success';
+      msg.textContent =
+        `✅ ${files.length} foto(s) enviada(s) com sucesso!`;
+    }
+
+  } catch (err) {
+    console.error('[DASHBOARD] upload fotos:', err);
+
+    if (err.message === 'UNAUTHORIZED') return;
+
+    if (msg) {
+      msg.className = 'form-message error';
+      msg.textContent =
+        '❌ ' + (err.message || 'Falha no upload.');
+    }
+  }
 }
 
 async function adicionarImagem(){
@@ -450,19 +520,81 @@ async function definirImagemPrincipal(imovelId,imagemId){
   }catch(e){if(e.message!=='UNAUTHORIZED')alert(e.message);}
 }
 
-async function deletarImagem(imovelId,imagemId){
-  if(!confirm('Excluir esta foto do imóvel? Esta ação não pode ser desfeita.'))return;
-  try{
-    const res=await apiFetch(`${API_BASE}/imoveis/${imovelId}/imagens/${imagemId}/excluir`,{method:'POST'});
-    const d=await res.json();
-    if(!res.ok)throw new Error(d.erro||`Falha ao excluir foto (HTTP ${res.status})`);
-    await carregarListaImagens(imovelId);
-    if(imovelEditandoId===imovelId)await carregarPreviewExistentes(imovelId);
-    const msg=document.getElementById('msgImagens');
-    if(msg){msg.className='form-message success';msg.textContent='✅ '+(d.mensagem||'Foto excluída com sucesso.');}
-  }catch(e){if(e.message!=='UNAUTHORIZED')alert(e.message);}
-}
+async function deletarImagem(imovelId, imagemId) {
+  if (!imovelId || !imagemId) {
+    alert('Dados da foto inválidos.');
+    return;
+  }
 
+  const confirmar = confirm(
+    'Excluir esta foto do imóvel?\n\n' +
+    'A foto será removida definitivamente.'
+  );
+
+  if (!confirmar) return;
+
+  const msg = document.getElementById('msgImagens');
+
+  try {
+    if (msg) {
+      msg.className = 'form-message info';
+      msg.textContent = '⏳ Excluindo foto...';
+    }
+
+    const res = await apiFetch(
+      `${API_BASE}/imoveis/${imovelId}/imagens/${imagemId}/excluir`,
+      {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json'
+        }
+      }
+    );
+
+    let data = {};
+
+    try {
+      data = await res.json();
+    } catch (_) {
+      data = {};
+    }
+
+    if (!res.ok) {
+      throw new Error(
+        data.erro ||
+        `Falha ao excluir foto (HTTP ${res.status})`
+      );
+    }
+
+    // Atualiza imediatamente a lista
+    await carregarListaImagens(imovelId);
+
+    // Atualiza o preview do formulário de edição
+    if (Number(imovelEditandoId) === Number(imovelId)) {
+      await carregarPreviewExistentes(imovelId);
+    }
+
+    if (msg) {
+      msg.className = 'form-message success';
+      msg.textContent =
+        '✅ ' +
+        (data.mensagem || 'Foto excluída com sucesso.');
+    }
+
+  } catch (err) {
+    console.error('[DASHBOARD] excluir imagem:', err);
+
+    if (err.message === 'UNAUTHORIZED') return;
+
+    if (msg) {
+      msg.className = 'form-message error';
+      msg.textContent =
+        '❌ ' + (err.message || 'Erro ao excluir foto.');
+    } else {
+      alert(err.message || 'Erro ao excluir foto.');
+    }
+  }
+}
 async function deletarVideo(imovelId,videoId){
   if(!confirm('Excluir este vídeo do imóvel?'))return;
   try{

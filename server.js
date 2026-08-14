@@ -499,38 +499,102 @@ app.delete('/api/imoveis/:id', verificarCorretor, (req, res) => {
 
 // Exclusão definitiva: remove o imóvel, as mídias no banco e os arquivos associados.
 // É separada da desativação lógica para evitar apagar anúncios por engano.
-app.post('/api/imoveis/:id/excluir-definitivo', verificarCorretor, (req, res) => {
-  const { id } = req.params;
-  db.get('SELECT id, titulo FROM imoveis WHERE id = ?', [id], (err, imovel) => {
-    if (err) return res.status(500).json({ erro: 'Erro ao localizar imóvel' });
-    if (!imovel) return res.status(404).json({ erro: 'Imóvel não encontrado' });
+app.post(
+  '/api/imoveis/:imovelId/imagens/:imagemId/excluir',
+  verificarCorretor,
+  async (req, res) => {
+    const { imovelId, imagemId } = req.params;
 
-    db.all('SELECT id, arquivo FROM imovel_midias WHERE imovel_id = ?', [id], (mediaErr, midias) => {
-      if (mediaErr) return res.status(500).json({ erro: 'Erro ao localizar mídias do imóvel' });
-      db.run('DELETE FROM imovel_midias WHERE imovel_id = ?', [id], mediaDeleteErr => {
-        if (mediaDeleteErr) return res.status(500).json({ erro: 'Erro ao remover mídias do imóvel: ' + mediaDeleteErr.message });
-        db.run('DELETE FROM imoveis WHERE id = ?', [id], async function(deleteErr) {
-          if (deleteErr) return res.status(500).json({ erro: 'Erro ao excluir imóvel: ' + deleteErr.message });
-          if (this.changes !== 1) return res.status(404).json({ erro: 'Imóvel não encontrado' });
-
-          let falhasArquivos = 0;
-          for (const media of (midias || [])) {
-            try { await removeStoredAsset(media.arquivo); } catch (_) { falhasArquivos += 1; }
+    try {
+      const imagem = await new Promise((resolve, reject) => {
+        db.get(
+          `SELECT id, imovel_id, arquivo, url_externa, principal
+             FROM imovel_midias
+            WHERE id = ?
+              AND imovel_id = ?
+              AND tipo = 'imagem'`,
+          [imagemId, imovelId],
+          (err, row) => {
+            if (err) return reject(err);
+            resolve(row);
           }
-          res.json({
-            mensagem: falhasArquivos
-              ? 'Imóvel excluído do banco. Algumas mídias não puderam ser removidas do armazenamento.'
-              : 'Imóvel e suas mídias excluídos definitivamente com sucesso.',
-            id: Number(id),
-            midiasExcluidas: (midias || []).length,
-            falhasArquivos
-          });
-        });
+        );
       });
-    });
-  });
-});
 
+      if (!imagem) {
+        return res.status(404).json({
+          erro: 'Foto não encontrada para este imóvel.'
+        });
+      }
+
+      // 1. PRIMEIRO remove o registro do PostgreSQL
+      await new Promise((resolve, reject) => {
+        db.run(
+          `DELETE FROM imovel_midias
+            WHERE id = ?
+              AND imovel_id = ?
+              AND tipo = 'imagem'`,
+          [imagemId, imovelId],
+          function (err) {
+            if (err) return reject(err);
+            resolve(this);
+          }
+        );
+      });
+
+      // 2. DEPOIS remove o arquivo físico/Blob
+      await removeStoredAsset(imagem.arquivo);
+
+      // 3. Se a excluída era principal, escolhe outra
+      if (Number(imagem.principal) === 1) {
+        const proxima = await new Promise((resolve, reject) => {
+          db.get(
+            `SELECT id
+               FROM imovel_midias
+              WHERE imovel_id = ?
+                AND tipo = 'imagem'
+              ORDER BY ordem ASC, id ASC
+              LIMIT 1`,
+            [imovelId],
+            (err, row) => {
+              if (err) return reject(err);
+              resolve(row);
+            }
+          );
+        });
+
+        if (proxima) {
+          await new Promise((resolve, reject) => {
+            db.run(
+              `UPDATE imovel_midias
+                  SET principal = 1
+                WHERE id = ?
+                  AND imovel_id = ?`,
+              [proxima.id, imovelId],
+              function (err) {
+                if (err) return reject(err);
+                resolve(this);
+              }
+            );
+          });
+        }
+      }
+
+      return res.json({
+        sucesso: true,
+        mensagem: 'Foto excluída com sucesso.',
+        id: Number(imagemId)
+      });
+
+    } catch (err) {
+      console.error('[EXCLUIR-IMAGEM] ERRO:', err);
+
+      return res.status(500).json({
+        erro: err?.message || 'Erro ao excluir foto.'
+      });
+    }
+  }
+);
 app.post('/api/logout', (req, res) => {
   clearAuthCookie(res);
   res.json({ mensagem: 'Sessão encerrada' });
