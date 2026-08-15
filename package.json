@@ -1,7 +1,7 @@
 {
   "name": "fabiano-reis-imoveis",
-  "version": "6.2.6",
-  "description": "Imobiliária Fabiano Reis — site + painel do corretor (Node/Express, SQLite local, PostgreSQL/Neon + Vercel Blob em produção).",
+  "version": "7.0.0",
+  "description": "Imobiliária Fabiano Reis — site + painel do corretor (Node/Express, SQLite local, PostgreSQL/Neon + Vercel Blob em produção). V7.0 produção, segurança, SEO e mídia.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -23,16 +23,16 @@
   "author": "Fabiano Reis",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "jsonwebtoken": "^9.0.2",
-    "bcryptjs": "^2.4.3",
-    "sqlite3": "^5.1.6",
-    "multer": "^1.4.5-lts.1",
-    "dotenv": "^16.0.3",
-    "express-static-gzip": "^2.1.8",
     "@neondatabase/serverless": "^1.1.0",
-    "@vercel/blob": "^2.6.1"
+    "@vercel/blob": "^2.6.1",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.22.2",
+    "express-static-gzip": "^2.1.8",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.2.0",
+    "sqlite3": "^6.0.1"
   },
   "engines": {
     "node": ">=20"

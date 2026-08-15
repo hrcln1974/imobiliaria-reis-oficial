@@ -21,10 +21,17 @@ app.disable('x-powered-by');
 const PORT = process.env.PORT || 3000;
 const MEDIA_ROOT = path.resolve(process.env.MEDIA_ROOT || (process.env.HOME ? path.join(process.env.HOME, 'fabiano-reis-media') : path.join(process.cwd(), 'storage', 'uploads')));
 const IS_VERCEL = Boolean(process.env.VERCEL);
-const SECRET = process.env.JWT_SECRET || (IS_VERCEL ? '' : 'dev-only-secret-change-me');
-if (IS_VERCEL && !SECRET) {
-  throw new Error('JWT_SECRET não configurado no Vercel. Configure uma chave forte nas Environment Variables.');
+const IS_PRODUCTION = process.env.NODE_ENV === 'production' || IS_VERCEL;
+const CONFIGURED_SECRET = String(process.env.JWT_SECRET || '').trim();
+const SECRET = CONFIGURED_SECRET || (IS_PRODUCTION ? '' : crypto.randomBytes(32).toString('hex'));
+if (IS_PRODUCTION && (!SECRET || SECRET.length < 32)) {
+  throw new Error('JWT_SECRET ausente ou inseguro. Configure uma chave aleatória com pelo menos 32 caracteres nas variáveis de ambiente.');
 }
+if (!CONFIGURED_SECRET && !IS_PRODUCTION) {
+  console.warn('[SEGURANÇA] JWT_SECRET não configurado: uma chave efêmera de desenvolvimento foi gerada para esta execução.');
+}
+if (process.env.TRUST_PROXY === '1' || IS_PRODUCTION) app.set('trust proxy', 1);
+
 
 // Middleware
 const configuredCorsOrigins = String(process.env.CORS_ORIGIN || '')
@@ -33,8 +40,11 @@ const configuredCorsOrigins = String(process.env.CORS_ORIGIN || '')
   .filter(Boolean);
 
 const defaultCorsOrigins = [
+  'https://fabianoreisimoveis.com.br',
+  'https://www.fabianoreisimoveis.com.br',
   'https://imobiliaria-fabiano-oficial.vercel.app',
-  'http://localhost:3000'
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
 ];
 
 app.use(cors({
@@ -49,6 +59,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: false, limit: '64kb', parameterLimit: 50 }));
 
 // Cabeçalhos de segurança básicos (sem dependências extras).
 app.use((req, res, next) => {
@@ -111,7 +122,7 @@ const storage = USE_BLOB ? multer.memoryStorage() : multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 10, fieldNameSize: 100, fieldSize: 64 * 1024, fieldNestingDepth: 3 },
   fileFilter: (req, file, cb) => {
     const permitidos = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (!permitidos.includes(file.mimetype)) return cb(new Error('Formato de imagem não permitido'));
@@ -131,6 +142,46 @@ const videoStorage = USE_BLOB ? multer.memoryStorage() : multer.diskStorage({
     cb(null, `${Date.now()}-${baseName}${ext}`);
   }
 });
+
+function detectFileSignature(buffer, kind) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 4) return false;
+  if (kind === 'image') {
+    const isJpeg = buffer.length >= 3 && buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF;
+    const isPng = buffer.length >= 8 && buffer.subarray(0,8).equals(Buffer.from([0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A]));
+    const isGif = buffer.subarray(0,6).toString('ascii') === 'GIF87a' || buffer.subarray(0,6).toString('ascii') === 'GIF89a';
+    const isWebp = buffer.length >= 12 && buffer.subarray(0,4).toString('ascii') === 'RIFF' && buffer.subarray(8,12).toString('ascii') === 'WEBP';
+    return isJpeg || isPng || isGif || isWebp;
+  }
+  if (kind === 'video') {
+    const head = buffer.subarray(0, 32).toString('latin1');
+    const isMp4Family = buffer.length >= 12 && buffer.subarray(4,8).toString('ascii') === 'ftyp';
+    const isWebm = buffer.length >= 4 && buffer.subarray(0,4).equals(Buffer.from([0x1A,0x45,0xDF,0xA3]));
+    const isOgg = buffer.subarray(0,4).toString('ascii') === 'OggS';
+    return isMp4Family || isWebm || isOgg || head.includes('ftyp');
+  }
+  return false;
+}
+
+async function readUploadedBuffer(file) {
+  if (!file) throw new Error('Arquivo não enviado');
+  if (file.buffer) return file.buffer;
+  if (file.path) return fs.promises.readFile(file.path);
+  if (file.destination && file.filename) return fs.promises.readFile(path.join(file.destination, file.filename));
+  throw new Error('Não foi possível validar o arquivo enviado.');
+}
+
+async function validateUploadedFile(file, kind) {
+  const allowed = kind === 'image'
+    ? new Set(['image/jpeg','image/png','image/webp','image/gif'])
+    : new Set(['video/mp4','video/webm','video/ogg','video/quicktime']);
+  if (!allowed.has(String(file.mimetype || '').toLowerCase())) throw new Error('Tipo MIME não permitido.');
+  const buffer = await readUploadedBuffer(file);
+  if (!detectFileSignature(buffer, kind)) {
+    if (file.path) { try { await fs.promises.unlink(file.path); } catch (_) {} }
+    throw new Error('O conteúdo do arquivo não corresponde ao tipo declarado.');
+  }
+  return buffer;
+}
 
 async function storeUploadedFile(file, folder) {
   if (!file) throw new Error('Arquivo não enviado');
@@ -194,7 +245,7 @@ async function removeStoredAsset(asset) {
 
 const uploadVideos = multer({
   storage: videoStorage,
-  limits: { fileSize: 50 * 1024 * 1024, files: 3 },
+  limits: { fileSize: 50 * 1024 * 1024, files: 3, fields: 15, fieldNameSize: 100, fieldSize: 64 * 1024, fieldNestingDepth: 3 },
   fileFilter: (req, file, cb) => {
     const permitidos = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
     if (!permitidos.includes(file.mimetype)) {
@@ -304,6 +355,50 @@ app.get('/dashboard.html', protegerPaginaCorretor, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
+const PUBLIC_SITE_URL = String(process.env.PUBLIC_SITE_URL || 'https://fabianoreisimoveis.com.br').replace(/\/$/, '');
+function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+function escapeAttr(value) { return escapeHtml(value).replace(/`/g, '&#96;'); }
+function escapeXml(value) {
+  return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+function propertyCanonical(id) { return `${PUBLIC_SITE_URL}/imovel/${encodeURIComponent(id)}`; }
+
+app.get('/sitemap.xml', (req, res) => {
+  db.all('SELECT id, criado_em FROM imoveis WHERE ativo = 1 ORDER BY criado_em DESC', [], (err, rows) => {
+    if (err) return res.status(500).type('text/plain').send('Sitemap indisponível');
+    const urls = [{ loc: `${PUBLIC_SITE_URL}/`, changefreq: 'weekly', priority: '1.0' }];
+    for (const row of (rows || [])) urls.push({ loc: propertyCanonical(row.id), changefreq: 'daily', priority: '0.8' });
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map(u => `\n  <url><loc>${escapeXml(u.loc)}</loc><changefreq>${u.changefreq}</changefreq><priority>${u.priority}</priority></url>`).join('')}\n</urlset>`;
+    res.type('application/xml').set('Cache-Control','public, max-age=300').send(xml);
+  });
+});
+
+app.get('/imovel/:id', (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(404).send('Imóvel não encontrado');
+  db.get('SELECT * FROM imoveis WHERE id = ? AND ativo = 1', [id], (err, imovel) => {
+    if (err) return res.status(500).send('Erro ao carregar imóvel');
+    if (!imovel) return res.status(404).send('Imóvel não encontrado');
+    db.all('SELECT id, tipo, arquivo, url_externa, ordem, principal FROM imovel_midias WHERE imovel_id = ? ORDER BY principal DESC, ordem ASC, criado_em ASC', [id], (mediaErr, midias) => {
+      if (mediaErr) return res.status(500).send('Erro ao carregar mídias');
+      const media = midias || [];
+      const image = media.find(m => m.tipo === 'imagem' && (m.arquivo || m.url_externa));
+      const imageUrl = image ? (image.arquivo || image.url_externa) : `${PUBLIC_SITE_URL}/img/placeholder.svg`;
+      const preco = Number(imovel.preco || 0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+      const title = `${imovel.titulo} | Fabiano Reis Imóveis`;
+      const description = String(imovel.descricao || `${imovel.tipo} para ${imovel.operacao} em ${imovel.bairro}, ${imovel.cidade}. Preço ${preco}.`).replace(/\s+/g,' ').trim().slice(0,155);
+      const jsonLd = JSON.stringify({
+        '@context':'https://schema.org','@type':'RealEstateListing','name':imovel.titulo,'url':propertyCanonical(id),
+        'description':description,'image':imageUrl,'datePosted':imovel.criado_em,
+        'offers':{'@type':'Offer','price':Number(imovel.preco || 0),'priceCurrency':'BRL'},
+        'address':{'@type':'PostalAddress','streetAddress':imovel.endereco || '', 'addressLocality':imovel.cidade || '', 'addressRegion':'RJ','addressCountry':'BR'}
+      });
+      const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><link rel="canonical" href="${propertyCanonical(id)}"><meta property="og:type" content="product"><meta property="og:url" content="${propertyCanonical(id)}"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:image" content="${escapeHtml(imageUrl)}"><link rel="icon" href="/favicon.ico"><link rel="stylesheet" href="/style.css"><style>main{max-width:1100px;margin:40px auto;padding:0 20px}.property-hero{display:grid;grid-template-columns:1.4fr 1fr;gap:28px}.property-hero img{width:100%;max-height:560px;object-fit:cover;border-radius:18px}.property-meta{background:#fff;border-radius:18px;padding:28px;box-shadow:0 10px 30px rgba(0,0,0,.08)}.property-meta h1{margin-top:0}.property-price{font-size:2rem;font-weight:800}.property-features{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}.property-feature{padding:8px 12px;background:#f1f5f9;border-radius:999px}.property-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:24px}.property-gallery img{width:100%;height:180px;object-fit:cover;border-radius:12px}@media(max-width:800px){.property-hero{grid-template-columns:1fr}}</style></head><body><main><a href="/">← Voltar para Fabiano Reis Imóveis</a><section class="property-hero"><div><img src="${escapeAttr(imageUrl)}" alt="${escapeAttr(imovel.titulo)}"></div><div class="property-meta"><p>${escapeHtml(imovel.operacao || '')}</p><h1>${escapeHtml(imovel.titulo)}</h1><div class="property-price">${escapeHtml(preco)}</div><p>📍 ${escapeHtml(imovel.bairro)}, ${escapeHtml(imovel.cidade)}</p><div class="property-features">${imovel.quartos ? `<span class="property-feature">🛏️ ${imovel.quartos} quartos</span>`:''}${imovel.banheiros ? `<span class="property-feature">🚿 ${imovel.banheiros} banheiros</span>`:''}${imovel.area ? `<span class="property-feature">📐 ${imovel.area} m²</span>`:''}${imovel.garagem ? `<span class="property-feature">🚗 ${imovel.garagem} vagas</span>`:''}</div><p>${escapeHtml(imovel.descricao || 'Consulte a imobiliária para mais informações.')}</p><a class="btn-primary" href="https://wa.me/5521991822134?text=${encodeURIComponent('Tenho interesse no imóvel: '+imovel.titulo)}" target="_blank" rel="noopener noreferrer">Falar no WhatsApp</a></div></section><section><h2>Fotos e vídeos</h2><div class="property-gallery">${media.filter(m=>m.tipo==='imagem' && (m.arquivo||m.url_externa)).map(m=>`<img loading="lazy" src="${escapeAttr(m.arquivo||m.url_externa)}" alt="${escapeAttr(imovel.titulo)}">`).join('')}</div></section></main><script type="application/ld+json">${jsonLd}</script></body></html>`;
+      res.type('html').set('Cache-Control','public, max-age=300').send(html);
+    });
+  });
+});
+
 // Mídia persistente da Hostinger: /uploads/* aponta para MEDIA_ROOT.
 if (!USE_BLOB) {
   app.use('/uploads', express.static(LOCAL_MEDIA_ROOT, {
@@ -367,6 +462,28 @@ function loginRateLimit(req, res, next) {
   next();
 }
 
+const publicRateBuckets = new Map();
+function publicRateLimit(name, windowMs, max) {
+  return (req, res, next) => {
+    const ip = String(req.ip || req.socket?.remoteAddress || 'desconhecido');
+    const key = `${name}:${ip}`;
+    const now = Date.now();
+    const current = publicRateBuckets.get(key);
+    if (!current || now - current.start >= windowMs) {
+      publicRateBuckets.set(key, { start: now, count: 1 });
+      return next();
+    }
+    current.count += 1;
+    if (current.count > max) return res.status(429).json({ erro: 'Muitas solicitações. Aguarde alguns minutos e tente novamente.' });
+    next();
+  };
+}
+setInterval(() => {
+  const cutoff = Date.now() - 30 * 60 * 1000;
+  for (const [key, value] of publicRateBuckets) if (value.start < cutoff) publicRateBuckets.delete(key);
+  for (const [key, value] of loginAttempts) if (value.start < cutoff) loginAttempts.delete(key);
+}, 10 * 60 * 1000).unref();
+
 app.post('/api/login', loginRateLimit, (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const senha = String(req.body?.senha || '');
@@ -394,7 +511,7 @@ app.post('/api/login', loginRateLimit, (req, res) => {
     res.json({ tipo: user.tipo, nome: user.nome, id: user.id });
   });
 });
-app.post('/api/register', (req, res) => {
+app.post('/api/register', publicRateLimit('register', 10 * 60 * 1000, 5), (req, res) => {
   const nome = String(req.body?.nome || '').trim();
   const email = String(req.body?.email || '').trim().toLowerCase();
   const senha = String(req.body?.senha || '');
@@ -454,7 +571,26 @@ app.get('/api/imoveis', (req, res) => {
 
   db.all(query, params, (err, imoveis) => {
     if (err) return res.status(500).json({ erro: 'Erro ao buscar' });
-    res.json({ imoveis });
+    const lista = imoveis || [];
+    if (!lista.length) return res.json({ imoveis: [] });
+    const ids = lista.map(item => item.id);
+    const placeholders = ids.map(() => '?').join(',');
+    db.all(
+      `SELECT id, imovel_id, tipo, arquivo, url_externa, ordem, principal, criado_em
+       FROM imovel_midias WHERE imovel_id IN (${placeholders})
+       ORDER BY principal DESC, ordem ASC, criado_em DESC`,
+      ids,
+      (mediaErr, midias) => {
+        if (mediaErr) return res.status(500).json({ erro: 'Erro ao buscar mídias dos imóveis' });
+        const byProperty = new Map();
+        for (const media of (midias || [])) {
+          if (!byProperty.has(media.imovel_id)) byProperty.set(media.imovel_id, []);
+          byProperty.get(media.imovel_id).push(media);
+        }
+        for (const item of lista) item.midias = byProperty.get(item.id) || [];
+        res.json({ imoveis: lista });
+      }
+    );
   });
 });
 
@@ -553,36 +689,29 @@ app.delete('/api/imoveis/:id', verificarCorretor, (req, res) => {
 
 // Exclusão definitiva: remove o imóvel, as mídias no banco e os arquivos associados.
 // É separada da desativação lógica para evitar apagar anúncios por engano.
-app.post('/api/imoveis/:id/excluir-definitivo', verificarCorretor, (req, res) => {
-  const { id } = req.params;
-  db.get('SELECT id, titulo FROM imoveis WHERE id = ?', [id], (err, imovel) => {
-    if (err) return res.status(500).json({ erro: 'Erro ao localizar imóvel' });
+app.post('/api/imoveis/:id/excluir-definitivo', verificarCorretor, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ erro: 'ID de imóvel inválido' });
+  try {
+    const imovel = await new Promise((resolve, reject) => db.get('SELECT id, titulo FROM imoveis WHERE id = ?', [id], (err, row) => err ? reject(err) : resolve(row)));
     if (!imovel) return res.status(404).json({ erro: 'Imóvel não encontrado' });
-
-    db.all('SELECT id, arquivo FROM imovel_midias WHERE imovel_id = ?', [id], (mediaErr, midias) => {
-      if (mediaErr) return res.status(500).json({ erro: 'Erro ao localizar mídias do imóvel' });
-      db.run('DELETE FROM imovel_midias WHERE imovel_id = ?', [id], mediaDeleteErr => {
-        if (mediaDeleteErr) return res.status(500).json({ erro: 'Erro ao remover mídias do imóvel: ' + mediaDeleteErr.message });
-        db.run('DELETE FROM imoveis WHERE id = ?', [id], async function(deleteErr) {
-          if (deleteErr) return res.status(500).json({ erro: 'Erro ao excluir imóvel: ' + deleteErr.message });
-          if (this.changes !== 1) return res.status(404).json({ erro: 'Imóvel não encontrado' });
-
-          let falhasArquivos = 0;
-          for (const media of (midias || [])) {
-            try { await removeStoredAsset(media.arquivo); } catch (_) { falhasArquivos += 1; }
-          }
-          res.json({
-            mensagem: falhasArquivos
-              ? 'Imóvel excluído do banco. Algumas mídias não puderam ser removidas do armazenamento.'
-              : 'Imóvel e suas mídias excluídos definitivamente com sucesso.',
-            id: Number(id),
-            midiasExcluidas: (midias || []).length,
-            falhasArquivos
-          });
-        });
-      });
-    });
-  });
+    const midias = await new Promise((resolve, reject) => db.all('SELECT id, arquivo FROM imovel_midias WHERE imovel_id = ?', [id], (err, rows) => err ? reject(err) : resolve(rows || [])));
+    await new Promise((resolve, reject) => db.run('UPDATE leads SET imovel_id = NULL WHERE imovel_id = ?', [id], err => err ? reject(err) : resolve()));
+    if (db.mode === 'postgres') {
+      await new Promise((resolve, reject) => db.run('DELETE FROM imoveis WHERE id = ?', [id], function(err) { if (err) reject(err); else if (this.changes !== 1) reject(Object.assign(new Error('Imóvel não encontrado'), {statusCode:404})); else resolve(); }));
+    } else {
+      await new Promise((resolve, reject) => db.run('DELETE FROM imovel_midias WHERE imovel_id = ?', [id], err => err ? reject(err) : resolve()));
+      await new Promise((resolve, reject) => db.run('DELETE FROM imoveis WHERE id = ?', [id], function(err) { if (err) reject(err); else if (this.changes !== 1) reject(Object.assign(new Error('Imóvel não encontrado'), {statusCode:404})); else resolve(); }));
+    }
+    let falhasArquivos = 0;
+    for (const media of midias) {
+      try { await removeStoredAsset(media.arquivo); } catch (err) { falhasArquivos += 1; console.warn('[MÍDIA] Falha ao limpar mídia', media.id, err.message); }
+    }
+    res.json({ mensagem: falhasArquivos ? 'Imóvel excluído. Algumas mídias precisam de limpeza manual.' : 'Imóvel e mídias excluídos definitivamente com sucesso.', id, midiasExcluidas: midias.length, falhasArquivos });
+  } catch (err) {
+    console.error('[IMÓVEL] Exclusão definitiva falhou:', err);
+    res.status(err.statusCode || 500).json({ erro: err.message || 'Erro ao excluir imóvel' });
+  }
 });
 
 app.post('/api/logout', (req, res) => {
@@ -676,6 +805,7 @@ app.post('/api/upload', verificarCorretor, upload.single('imagem'), async (req, 
   }
 
   try {
+    await validateUploadedFile(req.file, 'image');
     const arquivo = await storeUploadedFile(req.file, 'imagens');
 
     res.json({
@@ -765,7 +895,7 @@ app.get('/api/imoveis/:id/videos', (req, res) => {
   db.all(
     `SELECT id, imovel_id, tipo, arquivo, url_externa, ordem, criado_em
      FROM imovel_midias
-     WHERE imovel_id = ? AND tipo = 'video'
+     WHERE imovel_id = ? AND tipo = 'video' AND EXISTS (SELECT 1 FROM imoveis WHERE imoveis.id = imovel_midias.imovel_id AND imoveis.ativo = 1)
      ORDER BY ordem ASC, criado_em DESC`,
     [id],
     (err, videos) => {
@@ -781,7 +911,7 @@ app.get('/api/imoveis/:id/midias', (req, res) => {
   db.all(
     `SELECT id, imovel_id, tipo, arquivo, url_externa, ordem, principal, criado_em
      FROM imovel_midias
-     WHERE imovel_id = ?
+     WHERE imovel_id = ? AND EXISTS (SELECT 1 FROM imoveis WHERE imoveis.id = imovel_midias.imovel_id AND imoveis.ativo = 1)
      ORDER BY CASE WHEN principal = 1 THEN 0 ELSE 1 END, ordem ASC, criado_em DESC`,
     [id],
     (err, midias) => {
@@ -804,6 +934,7 @@ app.post('/api/imoveis/:id/videos', verificarCorretor, uploadVideos.array('video
     const videos = [];
     for (let index = 0; index < arquivos.length; index++) {
       const file = arquivos[index];
+      await validateUploadedFile(file, 'video');
       const arquivo = await storeUploadedFile(file, 'videos');
       const result = await new Promise((resolve, reject) => db.run(
         `INSERT INTO imovel_midias (imovel_id, tipo, arquivo, url_externa, ordem, principal) VALUES (?, 'video', ?, '', ?, 0)`,
@@ -903,6 +1034,22 @@ const SOCIAL_IMAGE_HOSTS = new Set([
   'x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'
 ]);
 
+function isPrivateHostname(hostname) {
+  const host = String(hostname || '').toLowerCase().replace(/\.$/, '');
+  if (host === 'localhost' || host === '::1') return true;
+  const ipv4 = host.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (!ipv4) return false;
+  const [a,b,c,d] = ipv4.slice(1).map(Number);
+  if ([a,b,c,d].some(n => n > 255)) return true;
+  return a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a === 0;
+}
+function assertSafeHttpUrl(value) {
+  const u = new URL(value);
+  if (!['http:','https:'].includes(u.protocol)) throw new Error('URL remota não permitida.');
+  if (isPrivateHostname(u.hostname)) throw new Error('Destino de rede privada não permitido.');
+  return u;
+}
+
 function isSocialMediaUrl(value) {
   try {
     const u = new URL(value);
@@ -949,6 +1096,7 @@ async function importSocialImage(sourceUrl) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
   try {
+    assertSafeHttpUrl(sourceUrl);
     const page = await fetch(sourceUrl, {
       signal: controller.signal,
       redirect: 'follow',
@@ -962,6 +1110,7 @@ async function importSocialImage(sourceUrl) {
     let imageUrl = extractSocialImage(html);
     if (!imageUrl) throw new Error('Não foi possível localizar a imagem pública desta publicação. A rede social pode exigir login ou bloquear a leitura automática.');
     imageUrl = new URL(imageUrl, page.url || sourceUrl).toString();
+    assertSafeHttpUrl(imageUrl);
 
     const imgController = new AbortController();
     const imgTimer = setTimeout(() => imgController.abort(), 12000);
@@ -995,7 +1144,7 @@ app.get('/api/imoveis/:id/imagens', (req, res) => {
   const { id } = req.params;
 
   db.all(
-    "SELECT id, imovel_id, arquivo, url_externa, ordem, principal, criado_em FROM imovel_midias WHERE imovel_id = ? AND tipo = 'imagem' ORDER BY ordem ASC, criado_em DESC",
+    "SELECT id, imovel_id, arquivo, url_externa, ordem, principal, criado_em FROM imovel_midias WHERE imovel_id = ? AND tipo = 'imagem' AND EXISTS (SELECT 1 FROM imoveis WHERE imoveis.id = imovel_midias.imovel_id AND imoveis.ativo = 1) ORDER BY ordem ASC, criado_em DESC",
     [id],
     (err, imagens) => {
       if (err) return res.status(500).json({ erro: 'Erro ao buscar imagens' });
@@ -1198,7 +1347,7 @@ app.put('/api/imoveis/:imovelId/imagens/:imagemId/principal', verificarCorretor,
 
 // ============= ROTAS DE LEADS =============
 
-app.post('/api/leads', (req, res) => {
+app.post('/api/leads', publicRateLimit('lead', 10 * 60 * 1000, 8), (req, res) => {
   const nome = String(req.body?.nome || '').trim();
   const email = String(req.body?.email || '').trim().toLowerCase();
   const telefone = String(req.body?.telefone || '').trim();
@@ -1206,20 +1355,29 @@ app.post('/api/leads', (req, res) => {
   const mensagem = String(req.body?.mensagem || '').trim();
   const imovel_id = req.body?.imovel_id;
   const tipo_interesse = String(req.body?.tipo_interesse || '').trim();
+  const imovelId = imovel_id == null || imovel_id === '' ? null : Number(imovel_id);
+
+  if (imovelId !== null && (!Number.isInteger(imovelId) || imovelId <= 0)) return res.status(400).json({ erro: 'Imóvel inválido.' });
 
   if (nome.length < 2 || nome.length > 120) return res.status(400).json({ erro: 'Informe seu nome.' });
   if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ erro: 'Informe um e-mail válido.' });
   if (telefone.replace(/\D/g, '').length < 10) return res.status(400).json({ erro: 'Informe um telefone válido com DDD.' });
   if (mensagem.length < 5 || mensagem.length > 2000) return res.status(400).json({ erro: 'Escreva uma mensagem com mais detalhes.' });
 
-  db.run(
+  const salvarLead = () => db.run(
     "INSERT INTO leads (nome, email, telefone, whatsapp, mensagem, imovel_id, tipo_interesse) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    [nome, email, telefone, whatsapp || '', mensagem, imovel_id || null, tipo_interesse || 'geral'],
+    [nome, email, telefone, whatsapp || '', mensagem, imovelId, tipo_interesse || 'geral'],
     function(err) {
       if (err) return res.status(500).json({ erro: 'Erro ao registrar interesse' });
       res.json({ mensagem: 'Seu interesse foi registrado. Fabiano entrará em contato!' });
     }
   );
+  if (imovelId === null) return salvarLead();
+  db.get('SELECT id FROM imoveis WHERE id = ? AND ativo = 1', [imovelId], (checkErr, row) => {
+    if (checkErr) return res.status(500).json({ erro: 'Erro ao validar imóvel' });
+    if (!row) return res.status(404).json({ erro: 'Imóvel não encontrado ou indisponível.' });
+    salvarLead();
+  });
 });
 
 app.get('/api/leads', verificarCorretor, (req, res) => {
@@ -1263,16 +1421,22 @@ app.get('/api/corretor', (req, res) => {
     horario: 'Segunda a sábado, 8:00 - 16:00',
     endereco: 'Travessa Arlindo Carreiro, 451',
     instagram: 'https://www.instagram.com/fabianoreiscorretor',
-    facebook: 'https://www.facebook.com/share/14n16MN3h15/'
+    facebook: 'https://www.facebook.com/share/14n16MN3h15/',
+    youtube: 'https://www.youtube.com/@FabianoReis-o5i'
   });
 });
 
 
 app.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError || err) {
-    return res.status(400).json({ erro: err.message || 'Erro no upload' });
+  if (err instanceof multer.MulterError) {
+    const status = err.code === 'LIMIT_FILE_SIZE' || err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_FIELD_COUNT' || err.code === 'LIMIT_FIELD_KEY' || err.code === 'LIMIT_FIELD_VALUE' || err.code === 'LIMIT_UNEXPECTED_FILE' ? 400 : 400;
+    return res.status(status).json({ erro: `Upload inválido: ${err.message}` });
   }
-  next(err);
+  if (err) {
+    console.error('[ERRO]', err);
+    return res.status(err.statusCode || 500).json({ erro: err.statusCode && err.statusCode < 500 ? err.message : 'Erro interno do servidor' });
+  }
+  next();
 });
 
 // ============= INICIAR SERVIDOR =============

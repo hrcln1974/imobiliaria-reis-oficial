@@ -138,7 +138,7 @@ async function criarCartaoImovel(imovel) {
 
   const preco = Number(imovel.preco || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const descricao = imovel.descricao ? imovel.descricao.substring(0, 100) + '...' : '';
-  const midias = await carregarMidiasImovel(imovel.id);
+  const midias = Array.isArray(imovel.midias) ? imovel.midias : await carregarMidiasImovel(imovel.id);
   const imagens = midias.filter(m => m.tipo === 'imagem');
   const videos = midias.filter(m => m.tipo === 'video');
   const principal = imagens.find(i => Number(i.principal) === 1) || imagens[0];
@@ -173,7 +173,7 @@ async function criarCartaoImovel(imovel) {
       ${principal ? `<img src="${escapeAttr(principal.arquivo || principal.url_externa)}" alt="${escapeAttr(imovel.titulo)}" style="width:100%;height:100%;object-fit:cover;">` : '📸'}
     </div>
     <div class="imovel-info">
-      <div class="imovel-titulo">${escapeHtml(imovel.titulo)}</div>
+      <div class="imovel-titulo"><a href="/imovel/${Number(imovel.id)}" style="color:inherit;text-decoration:none;" aria-label="Ver detalhes de ${escapeAttr(imovel.titulo)}">${escapeHtml(imovel.titulo)}</a></div>
       <div class="imovel-endereco">📍 ${escapeHtml(imovel.bairro)}, ${escapeHtml(imovel.cidade)}</div>
       <div class="imovel-preco">${preco}</div>
       <div class="imovel-operacao">${escapeHtml(imovel.operacao)}</div>

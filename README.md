@@ -1,6 +1,31 @@
+# Fabiano Reis Imóveis — V7.0
+
+## Produção
+
+- Domínio oficial: https://fabianoreisimoveis.com.br
+- Node.js: >=20
+- Multer: 2.2.0
+- JWT_SECRET: obrigatório em produção, mínimo 32 caracteres
+- MEDIA_ROOT: armazenamento persistente para Hostinger
+- DATABASE_URL: PostgreSQL/Neon em produção quando configurado
+- BLOB_READ_WRITE_TOKEN: Vercel Blob quando usado
+
+## Deploy
+
+1. Configure `JWT_SECRET`, `DATABASE_URL`/`BLOB_READ_WRITE_TOKEN` conforme o ambiente.
+2. Na Hostinger, configure `MEDIA_ROOT` para uma pasta persistente fora do diretório de deploy.
+3. Execute `npm ci`.
+4. Execute `npm run check`.
+5. Execute `npm run build:release` e publique somente a pasta `release/`.
+6. Preserve `MEDIA_ROOT` entre deploys.
+
+## V7.0 — mudanças principais
+
+Segurança de upload, rate limiting público, validação de assinatura, SSRF hardening, SEO do domínio oficial, sitemap dinâmico, páginas individuais de imóveis, mídia agregada e release por lista branca.
+
 # Imobiliária Fabiano Reis — Site + Painel do Corretor
 
-Versão **6.2.6**
+Versão **7.0.0**
 
 Site institucional de imóveis com painel administrativo do corretor: cadastro de
 imóveis, galeria de fotos e vídeos, destaque na home, captação e gestão de leads.

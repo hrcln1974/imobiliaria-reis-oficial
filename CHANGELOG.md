@@ -1,3 +1,21 @@
+# CHANGELOG
+
+## V7.0.0 — Produção, Segurança, SEO e Mídia
+
+- Atualiza Multer para 2.2.0 e reconstrói o lockfile.
+- Remove fallback previsível de JWT em produção; exige segredo forte.
+- Adiciona limites multipart e validação de assinatura de arquivos.
+- Adiciona rate limit para login, cadastro e leads.
+- Adiciona proteção SSRF ao importador de imagens externas.
+- Corrige canonical, Open Graph, Schema e robots para fabianoreisimoveis.com.br.
+- Adiciona sitemap dinâmico e páginas indexáveis /imovel/:id.
+- Elimina N+1 de mídias na home com resposta agregada.
+- Restringe APIs públicas de mídia a imóveis ativos.
+- Melhora exclusão definitiva e desvinculação de leads.
+- Habilita foreign_keys no SQLite e caminho de banco configurável.
+- Reescreve build de release com lista branca.
+- Atualiza preflight para V7.0.
+
 # V6.2.6 — Correção integral e estabilidade
 
 - Corrigida a exclusão de vídeos para tratar o armazenamento antes do DELETE no banco e capturar falhas assíncronas corretamente.

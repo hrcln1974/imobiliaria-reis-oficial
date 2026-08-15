@@ -2,6 +2,7 @@ const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 
 const usePostgres = Boolean(process.env.DATABASE_URL);
+const sqlitePath = process.env.SQLITE_DB_PATH || path.join(__dirname, 'database.db');
 
 function convertPlaceholders(sql) {
   let index = 0;
@@ -167,9 +168,9 @@ if (usePostgres) {
   db = new PostgresCompat(process.env.DATABASE_URL);
   db.mode = 'postgres';
 } else {
-  db = new sqlite3.Database(path.join(__dirname, 'database.db'));
+  db = new sqlite3.Database(sqlitePath);
   db.mode = 'sqlite';
-  db.ready = Promise.resolve(true);
+  db.ready = new Promise((resolve, reject) => db.run('PRAGMA foreign_keys = ON', err => err ? reject(err) : resolve(true)));
 }
 
 module.exports = db;

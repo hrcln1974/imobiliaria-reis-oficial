@@ -3,4 +3,4 @@ Allow: /
 Disallow: /dashboard.html
 Disallow: /api/
 
-Sitemap: https://imobiliaria-fabiano-oficial.vercel.app/sitemap.xml
+Sitemap: https://fabianoreisimoveis.com.br/sitemap.xml
