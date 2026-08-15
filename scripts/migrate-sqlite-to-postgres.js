@@ -42,7 +42,7 @@ async function ensureSchema() {
     tipo TEXT NOT NULL, operacao TEXT NOT NULL, endereco TEXT NOT NULL, numero TEXT,
     bairro TEXT NOT NULL, cidade TEXT NOT NULL, cep TEXT, quartos INTEGER, banheiros INTEGER,
     area DOUBLE PRECISION, garagem INTEGER DEFAULT 0, piscina INTEGER DEFAULT 0,
-    destaque INTEGER DEFAULT 0, ativo INTEGER DEFAULT 1, criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    caracteristicas TEXT, destaque INTEGER DEFAULT 0, ativo INTEGER DEFAULT 1, criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`;
   await sql`CREATE TABLE IF NOT EXISTS imovel_midias (
     id SERIAL PRIMARY KEY, imovel_id INTEGER NOT NULL REFERENCES imoveis(id) ON DELETE CASCADE,
@@ -105,7 +105,7 @@ async function setSequence(table) {
     console.log(`SQLite encontrado: ${usuarios.length} usuários, ${imoveis.length} imóveis, ${midias.length} mídias, ${leads.length} leads.`);
 
     await migrateTable(usuarios, 'usuarios', ['id','nome','email','senha','tipo','ativo','criado_em'], r => [r.id,r.nome,r.email,r.senha,r.tipo,r.ativo,r.criado_em]);
-    await migrateTable(imoveis, 'imoveis', ['id','titulo','descricao','preco','tipo','operacao','endereco','numero','bairro','cidade','cep','quartos','banheiros','area','garagem','piscina','destaque','ativo','criado_em'], r => [r.id,r.titulo,r.descricao,r.preco,r.tipo,r.operacao,r.endereco,r.numero,r.bairro,r.cidade,r.cep,r.quartos,r.banheiros,r.area,r.garagem,r.piscina,r.destaque,r.ativo,r.criado_em]);
+    await migrateTable(imoveis, 'imoveis', ['id','titulo','descricao','preco','tipo','operacao','endereco','numero','bairro','cidade','cep','quartos','banheiros','area','garagem','piscina','caracteristicas','destaque','ativo','criado_em'], r => [r.id,r.titulo,r.descricao,r.preco,r.tipo,r.operacao,r.endereco,r.numero,r.bairro,r.cidade,r.cep,r.quartos,r.banheiros,r.area,r.garagem,r.piscina,r.caracteristicas || '[]',r.destaque,r.ativo,r.criado_em]);
     await migrateTable(leads, 'leads', ['id','nome','email','telefone','whatsapp','mensagem','imovel_id','tipo_interesse','status','criado_em'], r => [r.id,r.nome,r.email,r.telefone,r.whatsapp,r.mensagem,r.imovel_id,r.tipo_interesse,r.status,r.criado_em]);
 
     for (const r of midias) {

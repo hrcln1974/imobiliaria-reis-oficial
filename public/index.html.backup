@@ -72,8 +72,13 @@
           <div class="redes-sociais">
             <a href="https://www.instagram.com/fabianoreiscorretor" target="_blank" class="rede-icon instagram">Instagram</a>
             <a href="https://www.facebook.com/share/14n16MN3h15/" target="_blank" class="rede-icon facebook">Facebook</a>
-            <a href="https://wa.me/5521991822134" target="_blank" rel="noopener noreferrer" class="rede-icon whatsapp">WhatsApp</a>
-            <a href="https://www.youtube.com/@FabianoReis-o5i" target="_blank" rel="noopener noreferrer" class="rede-icon youtube" aria-label="YouTube - Canal oficial Fabiano Reis">YouTube</a>                
+            <a href="https://wa.me/5521991822134" target="_blank" rel="noopener noreferrer" class="rede-icon whatsapp">WhatsApp</a>                
+         <a
+  href="https://www.youtube.com/@FabianoReis-o5i" target="_blank" rel="noopener noreferrer" class="rede-icon youtube"
+  aria-label="YouTube - Fabiano Reis"
+>
+  ▶ YouTube
+</a>
           </div>
         </div>
       </div>

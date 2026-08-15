@@ -30,7 +30,7 @@ const warn = (label, condition) => {
   if (!condition) warnings++;
 };
 
-console.log('\n=== FABIANO REIS IMÓVEIS — CHECK DE ENTREGA (V6.2.6) ===\n');
+console.log('\n=== FABIANO REIS IMÓVEIS — CHECK DE ENTREGA (V6.2.5) ===\n');
 
 console.log('-- Estrutura --');
 [
@@ -91,8 +91,7 @@ const lock = exists('package-lock.json') ? read('package-lock.json') : '';
 console.log('\n-- Funcionalidades --');
 ok('Exclusão segura de fotos', server.includes('excluirImagemDefinitivamente') && server.includes('DELETE FROM imovel_midias') && server.includes("tipo = 'imagem'"));
 ok('Foto principal após exclusão', server.includes('novaPrincipalId'));
-ok('Exclusão de vídeos', server.includes("tipo = 'video'") && server.includes('/api/imoveis/:imovelId/videos/:videoId') && server.includes('storageResult') && server.includes('removeStoredAsset(video.arquivo)'));
-ok('Características dos imóveis', server.includes('caracteristicas TEXT') && server.includes('listaCaracteristicas') && read('db-adapter.js').includes('ADD COLUMN IF NOT EXISTS caracteristicas'));
+ok('Exclusão de vídeos', server.includes("tipo = 'video'") && server.includes('/videos/:videoId'));
 ok('Gerenciador unificado de mídias', dash.includes('carregarListaImagens') && dash.includes('carregarListaVideos'));
 ok('Galeria pública foto + vídeo', pub.includes('midiasGaleria') && pub.includes("media.tipo === 'video'"));
 ok('Vídeos MP4/WebM/MOV + YouTube/Vimeo', server.includes('video/quicktime') && pub.includes('youtube.com/embed'));
@@ -107,10 +106,7 @@ ok('JWT_SECRET obrigatório em produção', server.includes('JWT_SECRET não con
 ok('Cabeçalhos de segurança', server.includes('X-Content-Type-Options') && server.includes('Referrer-Policy'));
 ok('Limite de tentativas de login', server.includes('loginRateLimit'));
 ok('Validação de leads', server.includes('Informe um e-mail válido.'));
-const envTracked = spawnSync('git', ['ls-files', '--error-unmatch', '.env'], {
-  encoding: 'utf8'
-});
-ok('Sem segredos versionados', envTracked.status !== 0);
+ok('Sem segredos versionados', !exists('.env'));
 
 console.log('\n-- Hospedagem --');
 ok('Upload local persistente na Hostinger', server.includes('MEDIA_ROOT') && server.includes('LOCAL_MEDIA_ROOT') && server.includes("app.use('/uploads'"));
@@ -146,4 +142,3 @@ console.log(failed
   ? 'RESULTADO: FALHOU — corrija os itens marcados com ✗\n'
   : 'RESULTADO: APROVADO — estrutura, sintaxe, segurança e SEO OK\n');
 process.exit(failed ? 1 : 0);
-

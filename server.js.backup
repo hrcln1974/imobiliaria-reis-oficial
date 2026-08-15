@@ -872,21 +872,15 @@ app.delete('/api/imoveis/:imovelId/videos/:videoId', verificarCorretor, (req, re
     async (err, video) => {
       if (err) return res.status(500).json({ erro: 'Erro ao buscar vídeo' });
       if (!video) return res.status(404).json({ erro: 'Vídeo não encontrado' });
-      try {
-        // Remove o arquivo primeiro. Se o armazenamento falhar, o registro
-        // permanece no banco para permitir uma nova tentativa sem perder a referência.
-        const storageResult = await removeStoredAsset(video.arquivo);
-        const deleted = await new Promise((resolve, reject) => db.run(
-          `DELETE FROM imovel_midias WHERE id = ? AND imovel_id = ? AND tipo = 'video'`,
-          [videoId, imovelId],
-          function(deleteErr) { deleteErr ? reject(deleteErr) : resolve(this.changes); }
-        ));
-        if (deleted !== 1) return res.status(404).json({ erro: 'Vídeo não encontrado' });
-        return res.json({ mensagem: 'Vídeo excluído com sucesso', storageResult });
-      } catch (deleteErr) {
-        console.error('[MÍDIA] Erro ao excluir vídeo:', deleteErr);
-        return res.status(500).json({ erro: deleteErr.message || 'Erro ao excluir vídeo' });
-      }
+      db.run(
+        `DELETE FROM imovel_midias WHERE id = ? AND imovel_id = ? AND tipo = 'video'`,
+        [videoId, imovelId],
+        async function(deleteErr) {
+          if (deleteErr) return res.status(500).json({ erro: 'Erro ao excluir vídeo' });
+          await removeStoredAsset(video.arquivo);
+          res.json({ mensagem: 'Vídeo excluído com sucesso' });
+        }
+      );
     }
   );
 });

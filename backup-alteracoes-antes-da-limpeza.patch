@@ -1,0 +1,1643 @@
+diff --git a/.env.example b/.env.example
+index 4a8f971..4def372 100644
+--- a/.env.example
++++ b/.env.example
+@@ -22,3 +22,7 @@ BLOB_READ_WRITE_TOKEN=
+ ADMIN_EMAIL=
+ ADMIN_PASSWORD=
+ ADMIN_NAME=Fabiano Reis
++
++# Hostinger: pasta persistente para fotos e vídeos, fora do diretório de deploy.
++# Exemplo: /home/SEU_USUARIO/fabiano-reis-media
++MEDIA_ROOT=
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index f7c58ea..8f8964d 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -71,3 +71,11 @@
+ - Migração SQLite → PostgreSQL + Blob.
+ - Correção do erro de atualização de imóveis observado na V5.2 em produção.
+ - Preservação do banner, galeria, acesso do corretor e identidade visual V5.2.
++
++
++## V6.2.5 — mídia persistente Hostinger
++- Armazenamento local movido para MEDIA_ROOT persistente.
++- /uploads/* servido diretamente de MEDIA_ROOT.
++- Upload de fotos processado uma foto por requisição.
++- Exclusão de fotos centralizada em uma única rotina.
++- Migração automática e não destrutiva de public/uploads antigos.
+diff --git a/README.md b/README.md
+index 766f329..e75f27f 100644
+--- a/README.md
++++ b/README.md
+@@ -188,3 +188,19 @@ Use um proxy reverso com HTTPS (o cookie de sessão usa `Secure` em produção).
+ ## Histórico
+ 
+ Consulte `CHANGELOG.md` e `docs/historico/` (documentação das versões 3.x a 6.1).
++
++## V6.2.5 — Hostinger: mídia persistente
++
++Na Hostinger, as fotos e vídeos não são mais gravados no diretório do deploy. O servidor usa `MEDIA_ROOT` para um armazenamento persistente.
++
++Recomendado na Hostinger:
++
++```env
++MEDIA_ROOT=/home/SEU_USUARIO/fabiano-reis-media
++```
++
++Se `MEDIA_ROOT` não for definido, o sistema usa automaticamente `$HOME/fabiano-reis-media` (ou `storage/uploads` quando `HOME` não estiver disponível).
++
++As URLs públicas continuam no formato `/uploads/imagens/...` e `/uploads/videos/...`.
++
++O upload de fotos é processado uma foto por requisição. A exclusão de fotos usa uma única rotina compartilhada pelas rotas `DELETE` e `POST /excluir`.
+diff --git a/db-adapter.js b/db-adapter.js
+index 5161a6c..fe9e5aa 100644
+--- a/db-adapter.js
++++ b/db-adapter.js
+@@ -62,11 +62,13 @@ class PostgresCompat {
+         area DOUBLE PRECISION,
+         garagem INTEGER DEFAULT 0,
+         piscina INTEGER DEFAULT 0,
++        caracteristicas TEXT,
+         destaque INTEGER DEFAULT 0,
+         ativo INTEGER DEFAULT 1,
+         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+       )
+     `);
++    await this.sql.query(`ALTER TABLE imoveis ADD COLUMN IF NOT EXISTS caracteristicas TEXT`);
+     await this.sql.query(`
+       CREATE TABLE IF NOT EXISTS imovel_midias (
+         id SERIAL PRIMARY KEY,
+diff --git a/package-lock.json b/package-lock.json
+index a2c025e..ab013c8 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "fabiano-reis-imoveis",
+-  "version": "6.2.4",
++  "version": "6.2.5",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "fabiano-reis-imoveis",
+-      "version": "6.2.4",
++      "version": "6.2.5",
+       "license": "MIT",
+       "dependencies": {
+         "@neondatabase/serverless": "^1.1.0",
+diff --git a/package.json b/package.json
+index e052b31..e7a4cd6 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "fabiano-reis-imoveis",
+-  "version": "6.2.4",
++  "version": "6.2.5",
+   "description": "Imobiliária Fabiano Reis — site + painel do corretor (Node/Express, SQLite local, PostgreSQL/Neon + Vercel Blob em produção).",
+   "main": "server.js",
+   "scripts": {
+diff --git a/preflight.js b/preflight.js
+index f500d2a..14ace89 100644
+--- a/preflight.js
++++ b/preflight.js
+@@ -30,7 +30,7 @@ const warn = (label, condition) => {
+   if (!condition) warnings++;
+ };
+ 
+-console.log('\n=== FABIANO REIS IMÓVEIS — CHECK DE ENTREGA (V6.2.3) ===\n');
++console.log('\n=== FABIANO REIS IMÓVEIS — CHECK DE ENTREGA (V6.2.5) ===\n');
+ 
+ console.log('-- Estrutura --');
+ [
+@@ -89,7 +89,7 @@ const html = read('public/index.html');
+ const lock = exists('package-lock.json') ? read('package-lock.json') : '';
+ 
+ console.log('\n-- Funcionalidades --');
+-ok('Exclusão segura de fotos', server.includes('DELETE FROM imovel_midias') && server.includes("tipo = 'imagem'"));
++ok('Exclusão segura de fotos', server.includes('excluirImagemDefinitivamente') && server.includes('DELETE FROM imovel_midias') && server.includes("tipo = 'imagem'"));
+ ok('Foto principal após exclusão', server.includes('novaPrincipalId'));
+ ok('Exclusão de vídeos', server.includes("tipo = 'video'") && server.includes('/videos/:videoId'));
+ ok('Gerenciador unificado de mídias', dash.includes('carregarListaImagens') && dash.includes('carregarListaVideos'));
+@@ -106,16 +106,19 @@ ok('JWT_SECRET obrigatório em produção', server.includes('JWT_SECRET não con
+ ok('Cabeçalhos de segurança', server.includes('X-Content-Type-Options') && server.includes('Referrer-Policy'));
+ ok('Limite de tentativas de login', server.includes('loginRateLimit'));
+ ok('Validação de leads', server.includes('Informe um e-mail válido.'));
+-ok('Sem segredos versionados', !exists('.env'));
++const envTracked = spawnSync('git', ['ls-files', '--error-unmatch', '.env'], {
++  encoding: 'utf8'
++});
++ok('Sem segredos versionados', envTracked.status !== 0);
+ 
+ console.log('\n-- Hospedagem --');
+-ok('Upload local na Hostinger sem Blob', server.includes("public/uploads/") && server.includes('armazenamentoMidia'));
++ok('Upload local persistente na Hostinger', server.includes('MEDIA_ROOT') && server.includes('LOCAL_MEDIA_ROOT') && server.includes("app.use('/uploads'"));
+ ok('Upload direto Blob somente quando Vercel + Blob', server.includes('uploadDiretoBlob') && server.includes('IS_VERCEL && USE_BLOB'));
+ 
+ console.log('\n-- Vercel --');
+ ok('Entrada serverless', exists('api/index.js') && read('api/index.js').includes("require('../server')"));
+ ok('Configuração Vercel', exists('vercel.json') && read('vercel.json').includes('api/index.js'));
+-ok("Mídia configurável Hostinger/Vercel", server.includes("const USE_BLOB = db.mode === 'postgres' &&") && server.includes("app.get('/api/config'"));
++ok("Mídia configurável Hostinger/Vercel", server.includes("const USE_BLOB = db.mode === 'postgres' &&") && server.includes('MEDIA_ROOT') && server.includes("app.get('/api/config'"));
+ ok('Lockfile com @neondatabase/serverless', lock.includes('@neondatabase/serverless'));
+ ok('Lockfile com @vercel/blob', lock.includes('@vercel/blob'));
+ 
+@@ -132,8 +135,7 @@ ok('Skip link', html.includes('skip-link'));
+ ok('Favicon leve (< 100 KB)', fs.statSync(path.join(root, 'public/favicon.ico')).size < 100 * 1024);
+ 
+ console.log('\n-- Mídia do cliente (avisos) --');
+-warn('Banner enviado (public/uploads/imagens/banner-alto-padrao.png)', exists('public/uploads/imagens/banner-alto-padrao.png'));
+-warn('Foto do corretor (public/uploads/imagens/foto-corretor-v5.png)', exists('public/uploads/imagens/foto-corretor-v5.png'));
++console.log('[i] Banner/foto do corretor são mídia operacional e não bloqueiam a entrega; podem ser enviados pelo painel.');
+ 
+ console.log('');
+ if (warnings) {
+@@ -143,3 +145,4 @@ console.log(failed
+   ? 'RESULTADO: FALHOU — corrija os itens marcados com ✗\n'
+   : 'RESULTADO: APROVADO — estrutura, sintaxe, segurança e SEO OK\n');
+ process.exit(failed ? 1 : 0);
++
+diff --git a/public/dashboard.html b/public/dashboard.html
+index 5fc31fd..21de314 100644
+--- a/public/dashboard.html
++++ b/public/dashboard.html
+@@ -1352,6 +1352,36 @@
+       display: block;
+       width: 100%;
+     }
++
++    .caracteristicas-avancadas {
++      margin-top: 22px;
++      padding: 18px;
++      border: 1px solid #dbe4f0;
++      border-radius: 16px;
++      background: #f8fafc;
++    }
++    .caracteristicas-avancadas-header {
++      display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:16px;
++    }
++    .caracteristicas-avancadas-header h4 { margin:0 0 5px; font-size:18px; color:#102a56; }
++    .caracteristicas-avancadas-header p { margin:0; color:#64748b; font-size:13px; }
++    .caracteristicas-contador {
++      flex:0 0 auto; padding:7px 11px; border-radius:999px; background:#e8eefc; color:#214fc4; font-weight:700; font-size:12px;
++    }
++    .caracteristicas-grupos { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
++    .caracteristica-grupo { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:15px; }
++    .caracteristica-grupo h5 { margin:0 0 12px; color:#152b52; font-size:14px; }
++    .caracteristica-opcoes { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
++    .caracteristica-opcoes label { display:flex; align-items:center; gap:8px; min-height:34px; padding:7px 8px; border-radius:9px; cursor:pointer; font-size:13px; color:#334155; transition:.15s ease; }
++    .caracteristica-opcoes label:hover { background:#f1f5f9; }
++    .caracteristica-opcoes input { width:16px; height:16px; accent-color:#2457df; flex:0 0 auto; }
++    @media (max-width: 900px) {
++      .caracteristicas-grupos { grid-template-columns:1fr; }
++    }
++    @media (max-width: 560px) {
++      .caracteristicas-avancadas-header { flex-direction:column; }
++      .caracteristica-opcoes { grid-template-columns:1fr; }
++    }
+ </style>
+ </head>
+ <body>
+@@ -1619,15 +1649,185 @@
+             </div>
+ 
+             <div class="form-checkboxes">
+-              <label class="checkbox-item">
+-                <input type="checkbox" id="piscina">
+-                <span>🏊 Tem Piscina?</span>
+-              </label>
+               <label class="checkbox-item">
+                 <input type="checkbox" id="destaque">
+                 <span>⭐ Destacar Imóvel?</span>
+               </label>
+             </div>
++
++            <div class="caracteristicas-avancadas" aria-labelledby="tituloCaracteristicasAvancadas">
++              <div class="caracteristicas-avancadas-header">
++                <div>
++                  <h4 id="tituloCaracteristicasAvancadas">✨ Características adicionais</h4>
++                  <p>Selecione todas as características que fazem parte deste imóvel.</p>
++                </div>
++                <span class="caracteristicas-contador" id="contadorCaracteristicas">0 selecionadas</span>
++              </div>
++
++              <div class="caracteristicas-grupos">
++                <div class="caracteristica-grupo">
++                  <h5>🏠 Estrutura e conforto</h5>
++                  <div class="caracteristica-opcoes">
++                    <label><input type="checkbox" id="piscina" name="caracteristicas" value="Piscina"><span>Piscina</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Elevador"><span>Elevador</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Piscina aquecida"><span>Piscina aquecida</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Jacuzzi"><span>Jacuzzi</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Hidromassagem"><span>Hidromassagem</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Sauna"><span>Sauna</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Spa"><span>Spa</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Ofurô"><span>Ofurô</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Varanda"><span>Varanda</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Varanda gourmet"><span>Varanda gourmet</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Terraço"><span>Terraço</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Solarium"><span>Solarium</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Jardim"><span>Jardim</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Quintal privativo"><span>Quintal privativo</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Área externa ampla"><span>Área externa ampla</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Pé-direito alto"><span>Pé-direito alto</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Mezanino"><span>Mezanino</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Suíte"><span>Suíte</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Suíte master"><span>Suíte master</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Closet"><span>Closet</span></label>
++                  </div>
++                </div>
++
++                <div class="caracteristica-grupo">
++                  <h5>🚗 Garagem e acesso</h5>
++                  <div class="caracteristica-opcoes">
++                    <label><input type="checkbox" name="caracteristicas" value="Garagem coberta"><span>Garagem coberta</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Garagem descoberta"><span>Garagem descoberta</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Vaga para 1 carro"><span>Vaga para 1 carro</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Vaga para 2 carros"><span>Vaga para 2 carros</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Vaga para 3 carros"><span>Vaga para 3 carros</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Vaga para 4 ou mais carros"><span>Vaga para 4 ou mais carros</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Garagem privativa"><span>Garagem privativa</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Garagem subterrânea"><span>Garagem subterrânea</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Portão eletrônico"><span>Portão eletrônico</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Portaria 24 horas"><span>Portaria 24 horas</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Controle de acesso"><span>Controle de acesso</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Acesso para cadeirantes"><span>Acesso para cadeirantes</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Rampa de acesso"><span>Rampa de acesso</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Entrada independente"><span>Entrada independente</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Fácil acesso à propriedade"><span>Fácil acesso à propriedade</span></label>
++                  </div>
++                </div>
++
++                <div class="caracteristica-grupo">
++                  <h5>🍖 Lazer e convivência</h5>
++                  <div class="caracteristica-opcoes">
++                    <label><input type="checkbox" name="caracteristicas" value="Churrasqueira"><span>Churrasqueira</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Espaço gourmet"><span>Espaço gourmet</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Salão de festas"><span>Salão de festas</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Salão de jogos"><span>Salão de jogos</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Playground"><span>Playground</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Academia"><span>Academia</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Quadra esportiva"><span>Quadra esportiva</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Campo de futebol"><span>Campo de futebol</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Área para confraternização"><span>Área para confraternização</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Espaço para eventos"><span>Espaço para eventos</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Espaço kids"><span>Espaço kids</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Fire pit"><span>Fire pit</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Área de convivência"><span>Área de convivência</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Jardim de inverno"><span>Jardim de inverno</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Espaço para pets"><span>Espaço para pets</span></label>
++                  </div>
++                </div>
++
++                <div class="caracteristica-grupo">
++                  <h5>🛏️ Quartos e ambientes</h5>
++                  <div class="caracteristica-opcoes">
++                    <label><input type="checkbox" name="caracteristicas" value="1 quarto"><span>1 quarto</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="2 quartos"><span>2 quartos</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="3 quartos"><span>3 quartos</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="4 quartos"><span>4 quartos</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="5 ou mais quartos"><span>5 ou mais quartos</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Suíte com varanda"><span>Suíte com varanda</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Suíte com closet"><span>Suíte com closet</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Suíte master"><span>Suíte master</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Quarto de hóspedes"><span>Quarto de hóspedes</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Escritório"><span>Escritório</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Home office"><span>Home office</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Sala de estar"><span>Sala de estar</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Sala de jantar"><span>Sala de jantar</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Sala de TV"><span>Sala de TV</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Sala integrada"><span>Sala integrada</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Cozinha planejada"><span>Cozinha planejada</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Cozinha americana"><span>Cozinha americana</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Cozinha gourmet"><span>Cozinha gourmet</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Lavabo"><span>Lavabo</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Dependência de serviço"><span>Dependência de serviço</span></label>
++                  </div>
++                </div>
++
++                <div class="caracteristica-grupo">
++                  <h5>✨ Acabamentos e tecnologia</h5>
++                  <div class="caracteristica-opcoes">
++                    <label><input type="checkbox" name="caracteristicas" value="Armários planejados"><span>Armários planejados</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Móveis planejados"><span>Móveis planejados</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Bancadas em granito"><span>Bancadas em granito</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Bancadas em mármore"><span>Bancadas em mármore</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Porcelanato"><span>Porcelanato</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Piso de madeira"><span>Piso de madeira</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Piso vinílico"><span>Piso vinílico</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Rebaixamento em gesso"><span>Rebaixamento em gesso</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Iluminação planejada"><span>Iluminação planejada</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Projeto arquitetônico"><span>Projeto arquitetônico</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Projeto de iluminação"><span>Projeto de iluminação</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Automação residencial"><span>Automação residencial</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Casa inteligente"><span>Casa inteligente</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Fechadura eletrônica"><span>Fechadura eletrônica</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Interfone"><span>Interfone</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Câmeras de segurança"><span>Câmeras de segurança</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Sistema de alarme"><span>Sistema de alarme</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Portas automatizadas"><span>Portas automatizadas</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Persianas automatizadas"><span>Persianas automatizadas</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Ar-condicionado"><span>Ar-condicionado</span></label>
++                  </div>
++                </div>
++
++                <div class="caracteristica-grupo">
++                  <h5>🌄 Localização e características externas</h5>
++                  <div class="caracteristica-opcoes">
++                    <label><input type="checkbox" name="caracteristicas" value="Vista para montanhas"><span>Vista para montanhas</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Vista panorâmica"><span>Vista panorâmica</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Vista para o verde"><span>Vista para o verde</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Vista para o mar"><span>Vista para o mar</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Frente para área verde"><span>Frente para área verde</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Rua tranquila"><span>Rua tranquila</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Rua sem saída"><span>Rua sem saída</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Próximo ao comércio"><span>Próximo ao comércio</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Próximo a escolas"><span>Próximo a escolas</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Próximo a hospitais"><span>Próximo a hospitais</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Próximo ao centro"><span>Próximo ao centro</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Fácil acesso à rodovia"><span>Fácil acesso à rodovia</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Região valorizada"><span>Região valorizada</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Bairro residencial"><span>Bairro residencial</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Condomínio fechado"><span>Condomínio fechado</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Área arborizada"><span>Área arborizada</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Muito ensolarado"><span>Muito ensolarado</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Boa ventilação"><span>Boa ventilação</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Privacidade"><span>Privacidade</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Excelente posição solar"><span>Excelente posição solar</span></label>
++                  </div>
++                </div>
++
++                <div class="caracteristica-grupo">
++                  <h5>🔐 Segurança, sustentabilidade e infraestrutura</h5>
++                  <div class="caracteristica-opcoes">
++                    <label><input type="checkbox" name="caracteristicas" value="Energia solar"><span>Energia solar</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Aquecimento solar"><span>Aquecimento solar</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Sistema de captação de água da chuva"><span>Sistema de captação de água da chuva</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Cisterna"><span>Cisterna</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Poço artesiano"><span>Poço artesiano</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Gerador de energia"><span>Gerador de energia</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Internet de fibra óptica"><span>Internet de fibra óptica</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Segurança 24 horas"><span>Segurança 24 horas</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Cerca elétrica"><span>Cerca elétrica</span></label>
++                    <label><input type="checkbox" name="caracteristicas" value="Documentação regularizada"><span>Documentação regularizada</span></label>
++                  </div>
++                </div>
++              </div>
++            </div>
+           </div>
+ 
+           <div class="form-section">
+diff --git a/public/dashboard.js b/public/dashboard.js
+index 894ed43..e112466 100644
+--- a/public/dashboard.js
++++ b/public/dashboard.js
+@@ -140,13 +140,26 @@ function filtrarImoveisPainel() {
+     </tr>`).join('') || '<tr><td colspan="7" class="table-empty">Nenhum imóvel encontrado.</td></tr>';
+ }
+ 
++function obterCaracteristicasSelecionadas() {
++  const valores = Array.from(document.querySelectorAll('input[name="caracteristicas"]:checked')).map(el => el.value);
++  const contador = document.getElementById('contadorCaracteristicas');
++  if (contador) contador.textContent = `${valores.length} selecionada${valores.length === 1 ? '' : 's'}`;
++  return valores;
++}
++
++function atualizarContadorCaracteristicas() {
++  obterCaracteristicasSelecionadas();
++}
++
+ function coletarDadosImovel() {
++  const caracteristicas = obterCaracteristicasSelecionadas();
+   return {
+     titulo: document.getElementById('titulo').value.trim(), tipo: document.getElementById('tipo').value, operacao: document.getElementById('operacao').value,
+     descricao: document.getElementById('descricao').value.trim(), preco: Number(document.getElementById('preco').value), endereco: document.getElementById('endereco').value.trim(),
+     numero: document.getElementById('numero').value.trim(), bairro: document.getElementById('bairro').value.trim(), cidade: document.getElementById('cidade').value.trim(), cep: document.getElementById('cep').value.trim(),
+     quartos: Number(document.getElementById('quartos').value) || 0, banheiros: Number(document.getElementById('banheiros').value) || 0, area: Number(document.getElementById('area').value) || 0,
+-    garagem: Number(document.getElementById('garagem').value) || 0, piscina: document.getElementById('piscina').checked ? 1 : 0, destaque: document.getElementById('destaque').checked ? 1 : 0
++    garagem: Number(document.getElementById('garagem').value) || 0, piscina: document.getElementById('piscina')?.checked ? 1 : 0, destaque: document.getElementById('destaque').checked ? 1 : 0,
++    caracteristicas
+   };
+ }
+ 
+@@ -158,6 +171,7 @@ function prepararNovoImovel() {
+   document.getElementById('tituloSecaoImovel').textContent = '➕ Cadastrar Novo Imóvel';
+   document.getElementById('btnSalvarImovel').textContent = '✅ Cadastrar Imóvel';
+   const editPhotos = document.getElementById('btnGerenciarFotosEdicao'); if (editPhotos) editPhotos.style.display = 'none';
++  atualizarContadorCaracteristicas();
+ }
+ 
+ function preencherFormularioImovel(i) {
+@@ -165,8 +179,18 @@ function preencherFormularioImovel(i) {
+   Object.entries(map).forEach(([id,value]) => { const el=document.getElementById(id); if(el) el.value=value; });
+   document.getElementById('piscina').checked = Boolean(i.piscina);
+   document.getElementById('destaque').checked = Boolean(i.destaque);
++  let caracteristicas = [];
++  try { caracteristicas = Array.isArray(i.caracteristicas) ? i.caracteristicas : JSON.parse(i.caracteristicas || '[]'); } catch (_) {}
++  caracteristicas = Array.isArray(caracteristicas) ? caracteristicas : [];
++  if (Number(i.piscina) === 1 && !caracteristicas.includes('Piscina')) caracteristicas.unshift('Piscina');
++  document.querySelectorAll('input[name="caracteristicas"]').forEach(el => { el.checked = caracteristicas.includes(el.value); });
++  atualizarContadorCaracteristicas();
+ }
+ 
++document.addEventListener('change', e => {
++  if (e.target.matches('input[name="caracteristicas"]')) atualizarContadorCaracteristicas();
++});
++
+ async function carregarPreviewExistentes(id) {
+   const grid = document.getElementById('previewFotos'); if (!grid) return;
+   try {
+@@ -320,20 +344,109 @@ function fecharModalImagens(){
+ 
+ async function carregarListaImagens(id){
+   try{
+-    const res=await apiFetch(`${API_BASE}/imoveis/${id}/imagens`);
+-    const d=await res.json();
+-    const imagens=d.imagens||[];
+-    const c=document.getElementById('listaImagens');
+-    c.innerHTML=imagens.length?imagens.map(img=>
+-      `<div class="media-card ${img.principal?'is-main':''}">
+-        <img src="${escapeAttr(img.arquivo||img.url_externa)}" alt="Foto do imóvel" onerror="this.style.opacity=.3">
+-        <div class="media-card-actions">
+-          ${img.principal?'<span class="main-badge">⭐ Principal</span>':'<button class="btn btn-light btn-compact" onclick="definirImagemPrincipal('+id+','+img.id+')">⭐ Principal</button>'}
+-          <button class="btn btn-danger btn-compact" onclick="deletarImagem('+id+','+img.id+')">🗑️ Excluir</button>
++    const imovelId = Number(id);
++
++    if(!Number.isInteger(imovelId) || imovelId <= 0){
++      console.error('[MÍDIA] ID de imóvel inválido:', id);
++      return;
++    }
++
++    const res = await apiFetch(`${API_BASE}/imoveis/${imovelId}/imagens`);
++    const d = await res.json();
++
++    if(!res.ok){
++      throw new Error(d.erro || `Falha ao carregar imagens (HTTP ${res.status})`);
++    }
++
++    const imagens = Array.isArray(d.imagens) ? d.imagens : [];
++    const c = document.getElementById('listaImagens');
++
++    if(!c) return;
++
++    if(!imagens.length){
++      c.innerHTML =
++        '<p style="grid-column:1/-1;text-align:center;color:#64748b;padding:25px;">Nenhuma foto cadastrada.</p>';
++      return;
++    }
++
++    c.innerHTML = imagens.map(img => {
++      const imagemId = Number(img?.id);
++
++      if(!Number.isInteger(imagemId) || imagemId <= 0){
++        console.warn('[MÍDIA] Imagem ignorada: ID inválido.', img);
++        return '';
++      }
++
++      const arquivo = typeof img?.arquivo === 'string'
++        ? img.arquivo.trim()
++        : '';
++
++      const urlExterna = typeof img?.url_externa === 'string'
++        ? img.url_externa.trim()
++        : '';
++
++      /*
++       * Prioridade:
++       * 1. arquivo local, quando existir;
++       * 2. URL externa, quando existir;
++       * 3. placeholder textual, quando não houver mídia válida.
++       */
++      let mediaUrl = '';
++
++      if(arquivo){
++        mediaUrl = arquivo;
++      }else if(/^https?:\/\//i.test(urlExterna)){
++        mediaUrl = urlExterna;
++      }
++
++      const imagemHtml = mediaUrl
++        ? `<img src="${escapeAttr(mediaUrl)}"
++                alt="Foto do imóvel"
++                loading="lazy"
++                onerror="this.style.opacity='.3';this.title='Imagem indisponível';">`
++        : `<div style="display:flex;align-items:center;justify-content:center;min-height:180px;color:#64748b;background:#f1f5f9;border-radius:8px;">
++             Imagem indisponível
++           </div>`;
++
++      const principalHtml = img.principal
++        ? '<span class="main-badge">⭐ Principal</span>'
++        : `<button
++             type="button"
++             class="btn btn-light btn-compact"
++             onclick="definirImagemPrincipal(${imovelId},${imagemId})">
++             ⭐ Principal
++           </button>`;
++
++      const excluirHtml = `
++        <button
++          type="button"
++          class="btn btn-danger btn-compact"
++          onclick="deletarImagem(${imovelId},${imagemId})">
++          🗑️ Excluir
++        </button>`;
++
++      return `
++        <div class="media-card ${img.principal ? 'is-main' : ''}">
++          ${imagemHtml}
++
++          <div class="media-card-actions">
++            ${principalHtml}
++            ${excluirHtml}
++          </div>
+         </div>
+-      </div>`).join(''):
+-      '<p style="grid-column:1/-1;text-align:center;color:#64748b;padding:25px;">Nenhuma foto cadastrada.</p>';
+-  }catch(e){console.error(e);}
++      `;
++    }).join('');
++
++  }catch(e){
++    console.error('[MÍDIA] Erro ao carregar imagens:', e);
++
++    const c = document.getElementById('listaImagens');
++
++    if(c){
++      c.innerHTML =
++        '<p style="grid-column:1/-1;text-align:center;color:#dc2626;padding:25px;">❌ Não foi possível carregar as imagens.</p>';
++    }
++  }
+ }
+ 
+ async function carregarListaVideos(id){
+@@ -355,109 +468,47 @@ async function carregarListaVideos(id){
+   }catch(e){console.error(e);}
+ }
+ 
+-async function enviarFotosModal() {
+-  const input = document.getElementById('fotosModal');
+-  const msg = document.getElementById('msgImagens');
+-
+-  if (!input?.files?.length) {
+-    if (msg) {
+-      msg.className = 'form-message error';
+-      msg.textContent = '❌ Selecione pelo menos uma foto.';
+-    }
+-    return;
+-  }
+-
+-  if (!imovelAtualGerenciandoImagens) {
+-    if (msg) {
+-      msg.className = 'form-message error';
+-      msg.textContent = '❌ Nenhum imóvel selecionado.';
+-    }
+-    return;
++async function enviarFotosModal(){
++  const input=document.getElementById('fotosModal'),msg=document.getElementById('msgImagens');
++  if(!input?.files?.length||!imovelAtualGerenciandoImagens){
++    msg.className='form-message error';msg.textContent='❌ Selecione pelo menos uma foto.';return;
+   }
+-
+-  try {
+-    const files = Array.from(input.files);
+-
+-    if (files.length > 12) {
+-      throw new Error('Você pode enviar no máximo 12 fotos por vez.');
+-    }
+-
+-    for (let i = 0; i < files.length; i++) {
+-      const file = files[i];
+-
+-      if (!file.type.startsWith('image/')) {
+-        throw new Error(
+-          `"${file.name}" não é uma imagem válida.`
+-        );
+-      }
+-
+-      if (file.size > 5 * 1024 * 1024) {
+-        throw new Error(
+-          `"${file.name}" ultrapassa o limite de 5 MB.`
+-        );
+-      }
+-
+-      if (msg) {
+-        msg.className = 'form-message info';
+-        msg.textContent =
+-          `⏳ Enviando foto ${i + 1} de ${files.length}...`;
+-      }
+-
+-      const formData = new FormData();
+-      formData.append('imagens', file);
+-
+-      const res = await apiFetch(
+-        `${API_BASE}/imoveis/${imovelAtualGerenciandoImagens}/fotos`,
+-        {
+-          method: 'POST',
+-          body: formData
++  try{
++    const files=Array.from(input.files);
++    msg.className='form-message info';msg.textContent=`⏳ Enviando ${files.length} foto(s)...`;
++    const useDirect = Boolean(mediaConfig.uploadDiretoBlob);
++    if(useDirect){
++      try{
++        for(let i=0;i<files.length;i++){
++          const f=files[i];
++          msg.textContent=`⏳ Enviando foto ${i+1}/${files.length}...`;
++          const blob=await uploadArquivoDiretoBlob(f,'imagens',p=>{msg.textContent=`⏳ Enviando foto ${i+1}/${files.length}: ${p}%`;});
++          const reg=await apiFetch(`${API_BASE}/imoveis/${imovelAtualGerenciandoImagens}/imagens/blob`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({arquivo:blob.url})});
++          const rd=await reg.json();if(!reg.ok)throw new Error(rd.erro||'Falha ao registrar foto');
++        }
++      }catch(blobErr){
++        // Em ambiente local sem Blob, mantém o fluxo tradicional, uma foto por requisição.
++        if(location.hostname.includes('vercel.app') || files.some(f=>f.size>4.5*1024*1024)) throw blobErr;
++        for(let i=0;i<files.length;i++){
++          const f=files[i];
++          msg.textContent=`⏳ Enviando foto ${i+1}/${files.length}...`;
++          const fd=new FormData();fd.append('imagens',f);
++          const res=await apiFetch(`${API_BASE}/imoveis/${imovelAtualGerenciandoImagens}/fotos`,{method:'POST',body:fd});
++          const d=await res.json();if(!res.ok)throw new Error(`Foto ${i+1} falhou: ${d.erro||'Falha no upload'}`);
+         }
+-      );
+-
+-      let data = {};
+-
+-      try {
+-        data = await res.json();
+-      } catch (_) {}
+-
+-      if (!res.ok) {
+-        throw new Error(
+-          data.erro ||
+-          `Falha no upload da foto ${i + 1}.`
+-        );
++      }
++    }else{
++      for(let i=0;i<files.length;i++){
++        const f=files[i];
++        msg.textContent=`⏳ Enviando foto ${i+1}/${files.length}...`;
++        const fd=new FormData();fd.append('imagens',f);
++        const res=await apiFetch(`${API_BASE}/imoveis/${imovelAtualGerenciandoImagens}/fotos`,{method:'POST',body:fd});
++        const d=await res.json();if(!res.ok)throw new Error(`Foto ${i+1} falhou: ${d.erro||'Falha no upload'}`);
+       }
+     }
+-
+-    input.value = '';
+-
+-    await carregarListaImagens(
+-      imovelAtualGerenciandoImagens
+-    );
+-
+-    if (Number(imovelEditandoId) ===
+-        Number(imovelAtualGerenciandoImagens)) {
+-      await carregarPreviewExistentes(
+-        imovelAtualGerenciandoImagens
+-      );
+-    }
+-
+-    if (msg) {
+-      msg.className = 'form-message success';
+-      msg.textContent =
+-        `✅ ${files.length} foto(s) enviada(s) com sucesso!`;
+-    }
+-
+-  } catch (err) {
+-    console.error('[DASHBOARD] upload fotos:', err);
+-
+-    if (err.message === 'UNAUTHORIZED') return;
+-
+-    if (msg) {
+-      msg.className = 'form-message error';
+-      msg.textContent =
+-        '❌ ' + (err.message || 'Falha no upload.');
+-    }
+-  }
++    input.value='';await carregarListaImagens(imovelAtualGerenciandoImagens);
++    msg.className='form-message success';msg.textContent='✅ Fotos enviadas com sucesso!';
++  }catch(e){if(e.message!=='UNAUTHORIZED'){msg.className='form-message error';msg.textContent='❌ '+e.message;}}
+ }
+ 
+ async function adicionarImagem(){
+@@ -520,81 +571,19 @@ async function definirImagemPrincipal(imovelId,imagemId){
+   }catch(e){if(e.message!=='UNAUTHORIZED')alert(e.message);}
+ }
+ 
+-async function deletarImagem(imovelId, imagemId) {
+-  if (!imovelId || !imagemId) {
+-    alert('Dados da foto inválidos.');
+-    return;
+-  }
+-
+-  const confirmar = confirm(
+-    'Excluir esta foto do imóvel?\n\n' +
+-    'A foto será removida definitivamente.'
+-  );
+-
+-  if (!confirmar) return;
+-
+-  const msg = document.getElementById('msgImagens');
+-
+-  try {
+-    if (msg) {
+-      msg.className = 'form-message info';
+-      msg.textContent = '⏳ Excluindo foto...';
+-    }
+-
+-    const res = await apiFetch(
+-      `${API_BASE}/imoveis/${imovelId}/imagens/${imagemId}/excluir`,
+-      {
+-        method: 'POST',
+-        headers: {
+-          'Accept': 'application/json'
+-        }
+-      }
+-    );
+-
+-    let data = {};
+-
+-    try {
+-      data = await res.json();
+-    } catch (_) {
+-      data = {};
+-    }
+-
+-    if (!res.ok) {
+-      throw new Error(
+-        data.erro ||
+-        `Falha ao excluir foto (HTTP ${res.status})`
+-      );
+-    }
+-
+-    // Atualiza imediatamente a lista
++async function deletarImagem(imovelId,imagemId){
++  if(!confirm('Excluir esta foto do imóvel? Esta ação não pode ser desfeita.'))return;
++  try{
++    const res=await apiFetch(`${API_BASE}/imoveis/${imovelId}/imagens/${imagemId}/excluir`,{method:'POST'});
++    const d=await res.json();
++    if(!res.ok)throw new Error(d.erro||`Falha ao excluir foto (HTTP ${res.status})`);
+     await carregarListaImagens(imovelId);
+-
+-    // Atualiza o preview do formulário de edição
+-    if (Number(imovelEditandoId) === Number(imovelId)) {
+-      await carregarPreviewExistentes(imovelId);
+-    }
+-
+-    if (msg) {
+-      msg.className = 'form-message success';
+-      msg.textContent =
+-        '✅ ' +
+-        (data.mensagem || 'Foto excluída com sucesso.');
+-    }
+-
+-  } catch (err) {
+-    console.error('[DASHBOARD] excluir imagem:', err);
+-
+-    if (err.message === 'UNAUTHORIZED') return;
+-
+-    if (msg) {
+-      msg.className = 'form-message error';
+-      msg.textContent =
+-        '❌ ' + (err.message || 'Erro ao excluir foto.');
+-    } else {
+-      alert(err.message || 'Erro ao excluir foto.');
+-    }
+-  }
++    if(imovelEditandoId===imovelId)await carregarPreviewExistentes(imovelId);
++    const msg=document.getElementById('msgImagens');
++    if(msg){msg.className='form-message success';msg.textContent='✅ '+(d.mensagem||'Foto excluída com sucesso.');}
++  }catch(e){if(e.message!=='UNAUTHORIZED')alert(e.message);}
+ }
++
+ async function deletarVideo(imovelId,videoId){
+   if(!confirm('Excluir este vídeo do imóvel?'))return;
+   try{
+diff --git a/public/index.html b/public/index.html
+index d93788e..5a79637 100644
+--- a/public/index.html
++++ b/public/index.html
+@@ -73,6 +73,12 @@
+             <a href="https://www.instagram.com/fabianoreiscorretor" target="_blank" class="rede-icon instagram">Instagram</a>
+             <a href="https://www.facebook.com/share/14n16MN3h15/" target="_blank" class="rede-icon facebook">Facebook</a>
+             <a href="https://wa.me/5521991822134" target="_blank" rel="noopener noreferrer" class="rede-icon whatsapp">WhatsApp</a>                
++         <a
++  href="https://www.youtube.com/@FabianoReis-o5i" target="_blank" rel="noopener noreferrer" class="rede-icon youtube"
++  aria-label="YouTube - Fabiano Reis"
++>
++  ▶ YouTube
++</a>
+           </div>
+         </div>
+       </div>
+diff --git a/public/script.js b/public/script.js
+index e1e8054..f103e1e 100644
+--- a/public/script.js
++++ b/public/script.js
+@@ -8,6 +8,19 @@ function escapeHtml(value) {
+ function escapeAttr(value) {
+   return escapeHtml(value).replace(/`/g, '&#96;');
+ }
++function obterCaracteristicasImovel(imovel) {
++  try {
++    const lista = Array.isArray(imovel?.caracteristicas) ? imovel.caracteristicas : JSON.parse(imovel?.caracteristicas || '[]');
++    return Array.isArray(lista) ? lista.filter(Boolean).map(String) : [];
++  } catch (_) { return []; }
++}
++function htmlCaracteristicasImovel(imovel, limite = 12) {
++  const lista = obterCaracteristicasImovel(imovel);
++  if (!lista.length) return '';
++  const visiveis = lista.slice(0, limite);
++  const extras = lista.length - visiveis.length;
++  return `<div class="imovel-caracteristicas-avancadas">${visiveis.map(c => `<span class="imovel-feature">✨ ${escapeHtml(c)}</span>`).join('')}${extras > 0 ? `<span class="imovel-feature imovel-feature-more">+${extras} outras</span>` : ''}</div>`;
++}
+ 
+ 
+ // ============= INICIALIZAR =============
+@@ -172,6 +185,8 @@ async function criarCartaoImovel(imovel) {
+         ${imovel.garagem ? `<div class="imovel-caracteristica">🚗 ${imovel.garagem}</div>` : ''}
+       </div>
+ 
++      ${htmlCaracteristicasImovel(imovel, 6)}
++
+       <div class="imovel-descricao">${escapeHtml(descricao)}</div>
+       ${galeriaHTML}
+ 
+@@ -278,6 +293,7 @@ async function abrirDetalhes(id) {
+                   ${imovel.area ? `<div class="detalhe-item"><strong>📐 Área</strong>${imovel.area}m²</div>` : ''}
+                   ${imovel.garagem ? `<div class="detalhe-item"><strong>🚗 Garagem</strong>${imovel.garagem}</div>` : ''}
+                 </div>
++                ${htmlCaracteristicasImovel(imovel, 100)}
+                 <div class="detalhe-item">
+                   <strong>📍 Localização</strong>
+                   ${escapeHtml(imovel.endereco)}${imovel.numero ? ', ' + escapeHtml(imovel.numero) : ''}<br>
+diff --git a/public/style.css b/public/style.css
+index 7dbafb5..bbb7d5e 100644
+--- a/public/style.css
++++ b/public/style.css
+@@ -1217,3 +1217,21 @@ button.close-imagem {
+ /* Evita rolagem horizontal em qualquer viewport */
+ html, body { max-width: 100%; overflow-x: hidden; }
+ img, video, iframe { max-width: 100%; }
++
++
++/* Características adicionais dos imóveis */
++.imovel-caracteristicas-avancadas { display:flex; flex-wrap:wrap; gap:7px; margin-top:10px; }
++.imovel-feature { display:inline-flex; align-items:center; padding:6px 9px; border:1px solid #dbe4f0; border-radius:999px; background:#f8fafc; color:#334155; font-size:12px; line-height:1.2; }
++.imovel-feature-more { background:#eef3ff; color:#2457df; font-weight:700; }
++.detalhes-container .imovel-caracteristicas-avancadas { margin:14px 0 4px; }
++
++.rede-icon.youtube {
++  background: #ff0000;
++  color: #fff;
++}
++
++.rede-icon.youtube:hover {
++  background: #cc0000;
++  color: #fff;
++}
++
+diff --git a/scripts/migrate-sqlite-to-postgres.js b/scripts/migrate-sqlite-to-postgres.js
+index 86693a3..ce8a33e 100644
+--- a/scripts/migrate-sqlite-to-postgres.js
++++ b/scripts/migrate-sqlite-to-postgres.js
+@@ -42,7 +42,7 @@ async function ensureSchema() {
+     tipo TEXT NOT NULL, operacao TEXT NOT NULL, endereco TEXT NOT NULL, numero TEXT,
+     bairro TEXT NOT NULL, cidade TEXT NOT NULL, cep TEXT, quartos INTEGER, banheiros INTEGER,
+     area DOUBLE PRECISION, garagem INTEGER DEFAULT 0, piscina INTEGER DEFAULT 0,
+-    destaque INTEGER DEFAULT 0, ativo INTEGER DEFAULT 1, criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
++    caracteristicas TEXT, destaque INTEGER DEFAULT 0, ativo INTEGER DEFAULT 1, criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+   )`;
+   await sql`CREATE TABLE IF NOT EXISTS imovel_midias (
+     id SERIAL PRIMARY KEY, imovel_id INTEGER NOT NULL REFERENCES imoveis(id) ON DELETE CASCADE,
+@@ -105,7 +105,7 @@ async function setSequence(table) {
+     console.log(`SQLite encontrado: ${usuarios.length} usuários, ${imoveis.length} imóveis, ${midias.length} mídias, ${leads.length} leads.`);
+ 
+     await migrateTable(usuarios, 'usuarios', ['id','nome','email','senha','tipo','ativo','criado_em'], r => [r.id,r.nome,r.email,r.senha,r.tipo,r.ativo,r.criado_em]);
+-    await migrateTable(imoveis, 'imoveis', ['id','titulo','descricao','preco','tipo','operacao','endereco','numero','bairro','cidade','cep','quartos','banheiros','area','garagem','piscina','destaque','ativo','criado_em'], r => [r.id,r.titulo,r.descricao,r.preco,r.tipo,r.operacao,r.endereco,r.numero,r.bairro,r.cidade,r.cep,r.quartos,r.banheiros,r.area,r.garagem,r.piscina,r.destaque,r.ativo,r.criado_em]);
++    await migrateTable(imoveis, 'imoveis', ['id','titulo','descricao','preco','tipo','operacao','endereco','numero','bairro','cidade','cep','quartos','banheiros','area','garagem','piscina','caracteristicas','destaque','ativo','criado_em'], r => [r.id,r.titulo,r.descricao,r.preco,r.tipo,r.operacao,r.endereco,r.numero,r.bairro,r.cidade,r.cep,r.quartos,r.banheiros,r.area,r.garagem,r.piscina,r.caracteristicas || '[]',r.destaque,r.ativo,r.criado_em]);
+     await migrateTable(leads, 'leads', ['id','nome','email','telefone','whatsapp','mensagem','imovel_id','tipo_interesse','status','criado_em'], r => [r.id,r.nome,r.email,r.telefone,r.whatsapp,r.mensagem,r.imovel_id,r.tipo_interesse,r.status,r.criado_em]);
+ 
+     for (const r of midias) {
+diff --git a/server.js b/server.js
+index 4e730f1..b3ee06e 100644
+--- a/server.js
++++ b/server.js
+@@ -19,6 +19,7 @@ if (db.mode === 'postgres') {
+ const app = express();
+ app.disable('x-powered-by');
+ const PORT = process.env.PORT || 3000;
++const MEDIA_ROOT = path.resolve(process.env.MEDIA_ROOT || (process.env.HOME ? path.join(process.env.HOME, 'fabiano-reis-media') : path.join(process.cwd(), 'storage', 'uploads')));
+ const IS_VERCEL = Boolean(process.env.VERCEL);
+ const SECRET = process.env.JWT_SECRET || (IS_VERCEL ? '' : 'dev-only-secret-change-me');
+ if (IS_VERCEL && !SECRET) {
+@@ -64,20 +65,41 @@ app.use((req, res, next) => {
+ 
+ // O dashboard é protegido por cookie HttpOnly; os demais arquivos públicos continuam sendo servidos abaixo.
+ 
+-// Armazenamento: disco local na V5.2/ambiente local; Vercel usa Vercel Blob.
+-// PostgreSQL/Neon não implica Vercel Blob.
+-// Na Hostinger (Node tradicional), sem BLOB_READ_WRITE_TOKEN, usamos disco local persistente.
+-// Na Vercel, quando o Blob está disponível, usamos Blob para evitar filesystem efêmero.
++// Armazenamento: Vercel usa Vercel Blob; Hostinger usa uma pasta persistente.
++// IMPORTANTE: o banco guarda apenas a URL relativa (/uploads/...), enquanto os
++// arquivos locais ficam fora do diretório do deploy para não serem apagados em
++// uma nova publicação. MEDIA_ROOT pode ser configurado na Hostinger.
+ const USE_BLOB = db.mode === 'postgres' && (IS_VERCEL || Boolean(process.env.BLOB_READ_WRITE_TOKEN));
+-// Diretórios de mídia local. Em Vercel/Blob não são usados (filesystem read-only).
++const LOCAL_MEDIA_ROOT = MEDIA_ROOT;
++
+ if (!IS_VERCEL && !USE_BLOB) {
+   for (const pasta of ['imagens', 'videos']) {
+-    try { fs.mkdirSync(path.join(__dirname, 'public', 'uploads', pasta), { recursive: true }); } catch (_) {}
++    try { fs.mkdirSync(path.join(LOCAL_MEDIA_ROOT, pasta), { recursive: true }); } catch (_) {}
++  }
++
++  // Migra com segurança arquivos da instalação antiga para o armazenamento persistente.
++  // Não altera o banco nem apaga a origem; assim o deploy pode ser revertido sem perda.
++  for (const pasta of ['imagens', 'videos']) {
++    const origem = path.join(__dirname, 'public', 'uploads', pasta);
++    const destino = path.join(LOCAL_MEDIA_ROOT, pasta);
++    try {
++      if (fs.existsSync(origem) && fs.existsSync(destino)) {
++        for (const nome of fs.readdirSync(origem)) {
++          if (nome === '.gitkeep') continue;
++          const src = path.join(origem, nome);
++          const dst = path.join(destino, nome);
++          if (fs.statSync(src).isFile() && !fs.existsSync(dst)) fs.copyFileSync(src, dst);
++        }
++      }
++    } catch (err) {
++      console.warn(`[MEDIA] Não foi possível migrar ${pasta}:`, err.message);
++    }
+   }
+ }
++
+ const storage = USE_BLOB ? multer.memoryStorage() : multer.diskStorage({
+   destination: (req, file, cb) => {
+-    const dir = path.join(__dirname, 'public/uploads/imagens');
++    const dir = path.join(LOCAL_MEDIA_ROOT, 'imagens');
+     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+     cb(null, dir);
+   },
+@@ -99,7 +121,7 @@ const upload = multer({
+ 
+ const videoStorage = USE_BLOB ? multer.memoryStorage() : multer.diskStorage({
+   destination: (req, file, cb) => {
+-    const dir = path.join(__dirname, 'public/uploads/videos');
++    const dir = path.join(LOCAL_MEDIA_ROOT, 'videos');
+     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+     cb(null, dir);
+   },
+@@ -137,23 +159,36 @@ async function storeBuffer(buffer, filename, contentType, folder) {
+     });
+     return blob.url;
+   }
+-  const dir = path.join(__dirname, 'public', 'uploads', folder);
++  const dir = path.join(LOCAL_MEDIA_ROOT, folder);
+   fs.mkdirSync(dir, { recursive: true });
+   fs.writeFileSync(path.join(dir, filename), buffer);
+   return `/uploads/${folder}/${filename}`;
+ }
+ 
+ async function removeStoredAsset(asset) {
+-  if (!asset) return;
++  if (!asset) return { removed: false, missing: true };
++
+   if (/^https?:\/\//i.test(asset)) {
+-    if (USE_BLOB && /\.blob\.vercel-storage\.com/i.test(asset)) {
+-      try { await blobDel(asset); } catch (_) {}
++    if (/\.blob\.vercel-storage\.com/i.test(asset) && blobDel && (USE_BLOB || process.env.BLOB_READ_WRITE_TOKEN)) {
++      try { await blobDel(asset); return { removed: true, missing: false }; }
++      catch (err) { throw new Error(`Não foi possível excluir o arquivo do Blob: ${err.message}`); }
+     }
+-    return;
++    return { removed: false, missing: false, external: true };
+   }
+-  if (asset.startsWith('/uploads/')) {
+-    const filePath = path.join(__dirname, 'public', asset.replace(/^\//, ''));
+-    try { await fs.promises.unlink(filePath); } catch (_) {}
++
++  if (!asset.startsWith('/uploads/')) return { removed: false, missing: false, external: true };
++
++  const relative = asset.replace(/^\/uploads\//, '');
++  const filePath = path.resolve(LOCAL_MEDIA_ROOT, relative);
++  const root = path.resolve(LOCAL_MEDIA_ROOT) + path.sep;
++  if (!filePath.startsWith(root)) throw new Error('Caminho de mídia inválido.');
++
++  try {
++    await fs.promises.unlink(filePath);
++    return { removed: true, missing: false };
++  } catch (err) {
++    if (err.code === 'ENOENT') return { removed: false, missing: true };
++    throw new Error(`Não foi possível excluir o arquivo ${relative}: ${err.message}`);
+   }
+ }
+ 
+@@ -178,14 +213,22 @@ function initDb() {
+     return db.ready.then(() => true);
+   }
+ 
+-  db.serialize(() => {
+-    db.run(`CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, email TEXT UNIQUE NOT NULL, senha TEXT NOT NULL, tipo TEXT DEFAULT 'cliente', ativo INTEGER DEFAULT 1, criado_em DATETIME DEFAULT CURRENT_TIMESTAMP)`);
+-    db.run(`CREATE TABLE IF NOT EXISTS imoveis (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT NOT NULL, descricao TEXT, preco REAL NOT NULL, tipo TEXT NOT NULL, operacao TEXT NOT NULL, endereco TEXT NOT NULL, numero TEXT, bairro TEXT NOT NULL, cidade TEXT NOT NULL, cep TEXT, quartos INTEGER, banheiros INTEGER, area REAL, garagem INTEGER DEFAULT 0, piscina INTEGER DEFAULT 0, destaque INTEGER DEFAULT 0, ativo INTEGER DEFAULT 1, criado_em DATETIME DEFAULT CURRENT_TIMESTAMP)`);
+-    db.run(`CREATE TABLE IF NOT EXISTS imovel_midias (id INTEGER PRIMARY KEY AUTOINCREMENT, imovel_id INTEGER NOT NULL, tipo TEXT NOT NULL, arquivo TEXT NOT NULL, url_externa TEXT, ordem INTEGER DEFAULT 0, principal INTEGER DEFAULT 0, criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(imovel_id) REFERENCES imoveis(id))`);
+-    db.run(`CREATE TABLE IF NOT EXISTS leads (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, email TEXT NOT NULL, telefone TEXT NOT NULL, whatsapp TEXT, mensagem TEXT, imovel_id INTEGER, tipo_interesse TEXT, status TEXT DEFAULT 'novo', criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(imovel_id) REFERENCES imoveis(id))`);
++  return new Promise((resolve, reject) => {
++    db.serialize(() => {
++      db.run(`CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, email TEXT UNIQUE NOT NULL, senha TEXT NOT NULL, tipo TEXT DEFAULT 'cliente', ativo INTEGER DEFAULT 1, criado_em DATETIME DEFAULT CURRENT_TIMESTAMP)`);
++      db.run(`CREATE TABLE IF NOT EXISTS imoveis (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT NOT NULL, descricao TEXT, preco REAL NOT NULL, tipo TEXT NOT NULL, operacao TEXT NOT NULL, endereco TEXT NOT NULL, numero TEXT, bairro TEXT NOT NULL, cidade TEXT NOT NULL, cep TEXT, quartos INTEGER, banheiros INTEGER, area REAL, garagem INTEGER DEFAULT 0, piscina INTEGER DEFAULT 0, caracteristicas TEXT, destaque INTEGER DEFAULT 0, ativo INTEGER DEFAULT 1, criado_em DATETIME DEFAULT CURRENT_TIMESTAMP)`);
++      db.run(`CREATE TABLE IF NOT EXISTS imovel_midias (id INTEGER PRIMARY KEY AUTOINCREMENT, imovel_id INTEGER NOT NULL, tipo TEXT NOT NULL, arquivo TEXT NOT NULL, url_externa TEXT, ordem INTEGER DEFAULT 0, principal INTEGER DEFAULT 0, criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(imovel_id) REFERENCES imoveis(id))`);
++      db.run(`CREATE TABLE IF NOT EXISTS leads (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, email TEXT NOT NULL, telefone TEXT NOT NULL, whatsapp TEXT, mensagem TEXT, imovel_id INTEGER, tipo_interesse TEXT, status TEXT DEFAULT 'novo', criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(imovel_id) REFERENCES imoveis(id))`);
++      db.all(`PRAGMA table_info(imoveis)`, (err, columns) => {
++        if (err) return reject(err);
++        if ((columns || []).some(c => c.name === 'caracteristicas')) return resolve(true);
++        db.run(`ALTER TABLE imoveis ADD COLUMN caracteristicas TEXT`, err2 => {
++          if (err2) return reject(err2);
++          resolve(true);
++        });
++      });
++    });
+   });
+-
+-  return Promise.resolve(true);
+ }
+ const dbReady = initDb();
+ 
+@@ -261,6 +304,15 @@ app.get('/dashboard.html', protegerPaginaCorretor, (req, res) => {
+   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+ });
+ 
++// Mídia persistente da Hostinger: /uploads/* aponta para MEDIA_ROOT.
++if (!USE_BLOB) {
++  app.use('/uploads', express.static(LOCAL_MEDIA_ROOT, {
++    fallthrough: true,
++    maxAge: process.env.NODE_ENV === 'production' ? '7d' : 0,
++    setHeaders: (res) => { res.setHeader('Cache-Control', 'public, max-age=604800, immutable'); }
++  }));
++}
++
+ // Arquivos públicos
+ app.use(express.static(path.join(__dirname, 'public'), {
+   setHeaders: (res, filePath) => {
+@@ -443,12 +495,13 @@ app.get('/api/imoveis/:id', (req, res) => {
+ });
+ 
+ app.post('/api/imoveis', verificarCorretor, (req, res) => {
+-  const { titulo, descricao, preco, tipo, operacao, endereco, numero, bairro, cidade, cep, quartos, banheiros, area, garagem, piscina, destaque } = req.body;
++  const { titulo, descricao, preco, tipo, operacao, endereco, numero, bairro, cidade, cep, quartos, banheiros, area, garagem, piscina, destaque, caracteristicas } = req.body;
++  const listaCaracteristicas = Array.isArray(caracteristicas) ? caracteristicas.map(v => String(v).trim()).filter(Boolean).slice(0, 100) : [];
+ 
+   db.run(
+-    `INSERT INTO imoveis (titulo, descricao, preco, tipo, operacao, endereco, numero, bairro, cidade, cep, quartos, banheiros, area, garagem, piscina, destaque)
+-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+-    [titulo, descricao, preco, tipo, operacao, endereco, numero, bairro, cidade, cep, quartos, banheiros, area, garagem, piscina, destaque || 0],
++    `INSERT INTO imoveis (titulo, descricao, preco, tipo, operacao, endereco, numero, bairro, cidade, cep, quartos, banheiros, area, garagem, piscina, caracteristicas, destaque)
++     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
++    [titulo, descricao, preco, tipo, operacao, endereco, numero, bairro, cidade, cep, quartos, banheiros, area, garagem, piscina, JSON.stringify(listaCaracteristicas), destaque || 0],
+     function(err) {
+       if (err) return res.status(500).json({ erro: 'Erro ao criar' });
+       res.json({ id: this.lastID, mensagem: 'Imóvel criado com sucesso' });
+@@ -461,7 +514,7 @@ app.put('/api/imoveis/:id', verificarCorretor, (req, res) => {
+   const camposPermitidos = [
+     'titulo','descricao','preco','tipo','operacao','endereco','numero',
+     'bairro','cidade','cep','quartos','banheiros','area','garagem',
+-    'piscina','destaque','ativo'
++    'piscina','caracteristicas','destaque','ativo'
+   ];
+ 
+   const entradas = Object.entries(req.body || {})
+@@ -474,6 +527,7 @@ app.put('/api/imoveis/:id', verificarCorretor, (req, res) => {
+   const sets = entradas.map(([campo]) => `${campo} = ?`).join(', ');
+   const valores = entradas.map(([campo, valor]) => {
+     if (['piscina','destaque','ativo'].includes(campo)) return Number(Boolean(valor));
++    if (campo === 'caracteristicas') { const lista = Array.isArray(valor) ? valor.map(v => String(v).trim()).filter(Boolean).slice(0, 100) : []; return JSON.stringify(lista); }
+     if (['quartos','banheiros','garagem'].includes(campo)) return Number(valor) || 0;
+     if (['preco','area'].includes(campo)) return Number(valor) || 0;
+     return valor;
+@@ -499,102 +553,38 @@ app.delete('/api/imoveis/:id', verificarCorretor, (req, res) => {
+ 
+ // Exclusão definitiva: remove o imóvel, as mídias no banco e os arquivos associados.
+ // É separada da desativação lógica para evitar apagar anúncios por engano.
+-app.post(
+-  '/api/imoveis/:imovelId/imagens/:imagemId/excluir',
+-  verificarCorretor,
+-  async (req, res) => {
+-    const { imovelId, imagemId } = req.params;
+-
+-    try {
+-      const imagem = await new Promise((resolve, reject) => {
+-        db.get(
+-          `SELECT id, imovel_id, arquivo, url_externa, principal
+-             FROM imovel_midias
+-            WHERE id = ?
+-              AND imovel_id = ?
+-              AND tipo = 'imagem'`,
+-          [imagemId, imovelId],
+-          (err, row) => {
+-            if (err) return reject(err);
+-            resolve(row);
+-          }
+-        );
+-      });
+-
+-      if (!imagem) {
+-        return res.status(404).json({
+-          erro: 'Foto não encontrada para este imóvel.'
+-        });
+-      }
++app.post('/api/imoveis/:id/excluir-definitivo', verificarCorretor, (req, res) => {
++  const { id } = req.params;
++  db.get('SELECT id, titulo FROM imoveis WHERE id = ?', [id], (err, imovel) => {
++    if (err) return res.status(500).json({ erro: 'Erro ao localizar imóvel' });
++    if (!imovel) return res.status(404).json({ erro: 'Imóvel não encontrado' });
+ 
+-      // 1. PRIMEIRO remove o registro do PostgreSQL
+-      await new Promise((resolve, reject) => {
+-        db.run(
+-          `DELETE FROM imovel_midias
+-            WHERE id = ?
+-              AND imovel_id = ?
+-              AND tipo = 'imagem'`,
+-          [imagemId, imovelId],
+-          function (err) {
+-            if (err) return reject(err);
+-            resolve(this);
++    db.all('SELECT id, arquivo FROM imovel_midias WHERE imovel_id = ?', [id], (mediaErr, midias) => {
++      if (mediaErr) return res.status(500).json({ erro: 'Erro ao localizar mídias do imóvel' });
++      db.run('DELETE FROM imovel_midias WHERE imovel_id = ?', [id], mediaDeleteErr => {
++        if (mediaDeleteErr) return res.status(500).json({ erro: 'Erro ao remover mídias do imóvel: ' + mediaDeleteErr.message });
++        db.run('DELETE FROM imoveis WHERE id = ?', [id], async function(deleteErr) {
++          if (deleteErr) return res.status(500).json({ erro: 'Erro ao excluir imóvel: ' + deleteErr.message });
++          if (this.changes !== 1) return res.status(404).json({ erro: 'Imóvel não encontrado' });
++
++          let falhasArquivos = 0;
++          for (const media of (midias || [])) {
++            try { await removeStoredAsset(media.arquivo); } catch (_) { falhasArquivos += 1; }
+           }
+-        );
+-      });
+-
+-      // 2. DEPOIS remove o arquivo físico/Blob
+-      await removeStoredAsset(imagem.arquivo);
+-
+-      // 3. Se a excluída era principal, escolhe outra
+-      if (Number(imagem.principal) === 1) {
+-        const proxima = await new Promise((resolve, reject) => {
+-          db.get(
+-            `SELECT id
+-               FROM imovel_midias
+-              WHERE imovel_id = ?
+-                AND tipo = 'imagem'
+-              ORDER BY ordem ASC, id ASC
+-              LIMIT 1`,
+-            [imovelId],
+-            (err, row) => {
+-              if (err) return reject(err);
+-              resolve(row);
+-            }
+-          );
+-        });
+-
+-        if (proxima) {
+-          await new Promise((resolve, reject) => {
+-            db.run(
+-              `UPDATE imovel_midias
+-                  SET principal = 1
+-                WHERE id = ?
+-                  AND imovel_id = ?`,
+-              [proxima.id, imovelId],
+-              function (err) {
+-                if (err) return reject(err);
+-                resolve(this);
+-              }
+-            );
++          res.json({
++            mensagem: falhasArquivos
++              ? 'Imóvel excluído do banco. Algumas mídias não puderam ser removidas do armazenamento.'
++              : 'Imóvel e suas mídias excluídos definitivamente com sucesso.',
++            id: Number(id),
++            midiasExcluidas: (midias || []).length,
++            falhasArquivos
+           });
+-        }
+-      }
+-
+-      return res.json({
+-        sucesso: true,
+-        mensagem: 'Foto excluída com sucesso.',
+-        id: Number(imagemId)
++        });
+       });
++    });
++  });
++});
+ 
+-    } catch (err) {
+-      console.error('[EXCLUIR-IMAGEM] ERRO:', err);
+-
+-      return res.status(500).json({
+-        erro: err?.message || 'Erro ao excluir foto.'
+-      });
+-    }
+-  }
+-);
+ app.post('/api/logout', (req, res) => {
+   clearAuthCookie(res);
+   res.json({ mensagem: 'Sessão encerrada' });
+@@ -717,143 +707,55 @@ app.post('/api/upload', verificarCorretor, upload.single('imagem'), async (req,
+ 
+ const uploadFotos = multer({
+   storage,
+-  limits: { fileSize: 5 * 1024 * 1024, files: 12 },
++  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+   fileFilter: (req, file, cb) => {
+-    const permitidos = [
+-      'image/jpeg',
+-      'image/png',
+-      'image/webp',
+-      'image/gif'
+-    ];
+-
+-    if (!permitidos.includes(file.mimetype)) {
+-      return cb(new Error('Formato de imagem não permitido'));
+-    }
+-
++    const permitidos = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
++    if (!permitidos.includes(file.mimetype)) return cb(new Error('Formato de imagem não permitido'));
+     cb(null, true);
+   }
+ });
+ 
+-app.post(
+-  '/api/imoveis/:id/fotos',
+-  verificarCorretor,
+-  uploadFotos.array('imagens', 12),
+-  async (req, res) => {
+-    const { id } = req.params;
+-
+-    try {
+-      const imovel = await new Promise((resolve, reject) => {
+-        db.get(
+-          'SELECT id FROM imoveis WHERE id = ?',
+-          [id],
+-          (err, row) => err ? reject(err) : resolve(row)
+-        );
+-      });
+-
+-      if (!imovel) {
+-        return res.status(404).json({
+-          erro: 'Imóvel não encontrado'
+-        });
+-      }
+-
+-      const arquivos = req.files || [];
+-
+-      if (!arquivos.length) {
+-        return res.status(400).json({
+-          erro: 'Nenhuma foto enviada'
+-        });
+-      }
+-
+-      const row = await new Promise((resolve, reject) => {
+-        db.get(
+-          'SELECT COUNT(*) AS total FROM imovel_midias WHERE imovel_id = ?',
+-          [id],
+-          (err, value) => err ? reject(err) : resolve(value)
+-        );
+-      });
+-
+-      const mainRow = await new Promise((resolve, reject) => {
+-        db.get(
+-          'SELECT COUNT(*) AS principal FROM imovel_midias WHERE imovel_id = ? AND principal = 1',
+-          [id],
+-          (err, value) => err ? reject(err) : resolve(value)
+-        );
+-      });
+-
+-      const ordemInicial = Number(row?.total || 0);
+-      const jaTemPrincipal = Number(mainRow?.principal || 0) > 0;
+-
+-      const imagens = [];
++// Uma foto por requisição. Isso evita uploads multipart grandes parcialmente processados
++// na Hostinger e permite identificar exatamente qual arquivo falhou.
++app.post('/api/imoveis/:id/fotos', verificarCorretor, uploadFotos.single('imagens'), async (req, res) => {
++  const { id } = req.params;
++  let arquivoSalvo = null;
+ 
+-      for (let index = 0; index < arquivos.length; index++) {
+-        const file = arquivos[index];
++  try {
++    const imovel = await new Promise((resolve, reject) => db.get('SELECT id FROM imoveis WHERE id = ?', [id], (err, row) => err ? reject(err) : resolve(row)));
++    if (!imovel) return res.status(404).json({ erro: 'Imóvel não encontrado' });
+ 
+-        const arquivo = await storeUploadedFile(
+-          file,
+-          'imagens'
+-        );
++    const file = req.file;
++    if (!file) return res.status(400).json({ erro: 'Nenhuma foto enviada' });
+ 
+-        const principal =
+-          !jaTemPrincipal && index === 0 ? 1 : 0;
++    const row = await new Promise((resolve, reject) => db.get("SELECT COUNT(*) AS total FROM imovel_midias WHERE imovel_id = ? AND tipo = 'imagem'", [id], (err, value) => err ? reject(err) : resolve(value)));
++    const mainRow = await new Promise((resolve, reject) => db.get("SELECT COUNT(*) AS principal FROM imovel_midias WHERE imovel_id = ? AND tipo = 'imagem' AND principal = 1", [id], (err, value) => err ? reject(err) : resolve(value)));
++    const ordem = Number(row?.total || 0);
++    const principal = Number(mainRow?.principal || 0) === 0 ? 1 : 0;
+ 
+-        const result = await new Promise((resolve, reject) => {
+-          db.run(
+-            `INSERT INTO imovel_midias
+-              (imovel_id, tipo, arquivo, url_externa, ordem, principal)
+-             VALUES (?, ?, ?, ?, ?, ?)`,
+-            [
+-              id,
+-              'imagem',
+-              arquivo,
+-              '',
+-              ordemInicial + index,
+-              principal
+-            ],
+-            function(err) {
+-              if (err) {
+-                reject(err);
+-              } else {
+-                resolve(this);
+-              }
+-            }
+-          );
+-        });
++    arquivoSalvo = await storeUploadedFile(file, 'imagens');
++    const result = await new Promise((resolve, reject) => db.run(
++      `INSERT INTO imovel_midias (imovel_id, tipo, arquivo, url_externa, ordem, principal) VALUES (?, 'imagem', ?, '', ?, ?)`,
++      [id, arquivoSalvo, ordem, principal],
++      function(err) { err ? reject(err) : resolve(this); }
++    ));
+ 
+-        imagens.push({
+-          id: result.lastID,
+-          arquivo
+-        });
++    console.log(`[UPLOAD-FOTOS] Foto ${result.lastID} salva para imóvel ${id}: ${arquivoSalvo}`);
++    return res.json({
++      mensagem: 'Foto enviada com sucesso',
++      imagem: { id: result.lastID, arquivo: arquivoSalvo, principal: Boolean(principal) },
++      imagens: [arquivoSalvo]
++    });
++  } catch (err) {
++    if (arquivoSalvo) {
++      try { await removeStoredAsset(arquivoSalvo); } catch (cleanupErr) {
++        console.error('[UPLOAD-FOTOS] Falha ao limpar arquivo após erro:', cleanupErr.message);
+       }
+-
+-      res.json({
+-        mensagem: `${arquivos.length} foto(s) enviada(s) com sucesso`,
+-        imagens: imagens.map(v => v.arquivo)
+-      });
+-
+-    } catch (err) {
+-      console.error('[UPLOAD-FOTOS] ERRO:', {
+-        message: err?.message || null,
+-        name: err?.name || null,
+-        code: err?.code || null,
+-        stack: err?.stack || null,
+-        imovelId: id,
+-        useBlob: USE_BLOB,
+-        hasBlobToken: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
+-        hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
+-        files: (req.files || []).map(file => ({
+-          originalname: file.originalname,
+-          mimetype: file.mimetype,
+-          size: file.size
+-        }))
+-      });
+-
+-      res.status(500).json({
+-        erro: err?.message || 'Erro ao salvar as fotos',
+-        codigo: err?.code || null
+-      });
+     }
++    console.error('[UPLOAD-FOTOS] ERRO:', { message: err?.message, code: err?.code, stack: err?.stack, imovelId: id });
++    return res.status(500).json({ erro: err?.message || 'Erro ao salvar a foto', codigo: err?.code || null });
+   }
+-);
++});
+ 
+ // ============= ROTAS DE VÍDEOS =============
+ 
+@@ -1080,6 +982,7 @@ async function importSocialImage(sourceUrl) {
+   } finally { clearTimeout(timer); }
+ }
+ 
++
+ // ============= ROTAS DE IMAGENS =============
+ 
+ app.get('/api/imoveis/:id/imagens', (req, res) => {
+@@ -1191,74 +1094,66 @@ app.post('/api/imoveis/:id/imagens', verificarCorretor, (req, res) => {
+   });
+ });
+ 
+-app.delete('/api/imoveis/:imovelId/imagens/:imagemId', verificarCorretor, (req, res) => {
+-  const { imovelId, imagemId } = req.params;
+-
+-  db.get(
+-    `SELECT id, imovel_id, tipo, arquivo, url_externa, principal
+-     FROM imovel_midias
+-     WHERE id = ? AND imovel_id = ? AND tipo = 'imagem'`,
++async function excluirImagemDefinitivamente(imovelId, imagemId) {
++  const imagem = await new Promise((resolve, reject) => db.get(
++    `SELECT id, imovel_id, tipo, arquivo, url_externa, principal FROM imovel_midias WHERE id = ? AND imovel_id = ? AND tipo = 'imagem'`,
+     [imagemId, imovelId],
+-    (err, imagem) => {
+-      if (err) {
+-        console.error(`[MÍDIA] Erro ao buscar imagem ${imagemId} do imóvel ${imovelId}:`, err);
+-        return res.status(500).json({ erro: 'Erro ao buscar imagem: ' + (err.message || 'falha no banco de dados') });
+-      }
+-      if (!imagem) return res.status(404).json({ erro: 'Foto não encontrada neste imóvel' });
++    (err, row) => err ? reject(err) : resolve(row)
++  ));
++  if (!imagem) { const err = new Error('Foto não encontrada neste imóvel'); err.statusCode = 404; throw err; }
+ 
+-      db.run(
+-        `DELETE FROM imovel_midias WHERE id = ? AND imovel_id = ? AND tipo = 'imagem'`,
+-        [imagemId, imovelId],
+-        function(deleteErr) {
+-          if (deleteErr) return res.status(500).json({ erro: 'Erro ao excluir foto: ' + deleteErr.message });
+-          const alteracoes = arguments.length > 1 && arguments[1] && typeof arguments[1].changes === 'number' ? arguments[1].changes : this.changes;
+-          if (alteracoes !== 1) return res.status(404).json({ erro: 'Foto não encontrada neste imóvel' });
+-
+-          console.log(`[MÍDIA] Foto ${imagemId} excluída do imóvel ${imovelId}`);
+-
+-          // Se a foto excluída era a principal, promove a primeira foto restante.
+-          const promoverProxima = async () => {
+-            await removeStoredAsset(imagem.arquivo);
+-            if (!Number(imagem.principal)) return res.json({
+-              mensagem: 'Foto excluída com sucesso',
+-              novaPrincipal: false
+-            });
+-
+-            db.get(
+-              `SELECT id FROM imovel_midias
+-               WHERE imovel_id = ? AND tipo = 'imagem'
+-               ORDER BY ordem ASC, criado_em ASC
+-               LIMIT 1`,
+-              [imovelId],
+-              (nextErr, proxima) => {
+-                if (nextErr) return res.status(500).json({ erro: 'Foto excluída, mas não foi possível definir a nova principal' });
+-                if (!proxima) return res.json({
+-                  mensagem: 'Foto excluída com sucesso. O imóvel ficou sem foto principal.',
+-                  novaPrincipal: false
+-                });
+-
+-                db.run(
+-                  'UPDATE imovel_midias SET principal = 1 WHERE id = ? AND imovel_id = ? AND tipo = ?',
+-                  [proxima.id, imovelId, 'imagem'],
+-                  (promoteErr) => {
+-                    if (promoteErr) return res.status(500).json({ erro: 'Foto excluída, mas não foi possível definir a nova principal' });
+-                    res.json({
+-                      mensagem: 'Foto excluída e nova foto principal definida com sucesso',
+-                      novaPrincipal: true,
+-                      novaPrincipalId: proxima.id
+-                    });
+-                  }
+-                );
+-              }
+-            );
+-          };
+-
+-          promoverProxima();
+-        }
+-      );
++  // Primeiro garante que o arquivo local/Blob pode ser removido.
++  // ENOENT é tratado como já removido, permitindo limpar registros órfãos.
++  const storageResult = await removeStoredAsset(imagem.arquivo);
++
++  const deleted = await new Promise((resolve, reject) => db.run(
++    `DELETE FROM imovel_midias WHERE id = ? AND imovel_id = ? AND tipo = 'imagem'`,
++    [imagemId, imovelId],
++    function(err) { err ? reject(err) : resolve(this.changes); }
++  ));
++  if (deleted !== 1) { const err = new Error('Foto não encontrada neste imóvel'); err.statusCode = 404; throw err; }
++
++  let novaPrincipal = false;
++  let novaPrincipalId = null;
++  if (Number(imagem.principal)) {
++    const proxima = await new Promise((resolve, reject) => db.get(
++      `SELECT id FROM imovel_midias WHERE imovel_id = ? AND tipo = 'imagem' ORDER BY ordem ASC, criado_em ASC LIMIT 1`,
++      [imovelId],
++      (err, row) => err ? reject(err) : resolve(row)
++    ));
++    if (proxima) {
++      await new Promise((resolve, reject) => db.run(
++        'UPDATE imovel_midias SET principal = 1 WHERE id = ? AND imovel_id = ? AND tipo = ?',
++        [proxima.id, imovelId, 'imagem'],
++        function(err) { err ? reject(err) : resolve(this); }
++      ));
++      novaPrincipal = true;
++      novaPrincipalId = Number(proxima.id);
+     }
+-  );
+-});
++  }
++
++  return {
++    storageResult,
++    novaPrincipal,
++    novaPrincipalId,
++    mensagem: novaPrincipal ? 'Foto excluída e nova foto principal definida com sucesso' : 'Foto excluída com sucesso'
++  };
++}
++
++async function responderExclusaoImagem(req, res) {
++  const { imovelId, imagemId } = req.params;
++  try {
++    const resultado = await excluirImagemDefinitivamente(imovelId, imagemId);
++    console.log(`[MÍDIA] Foto ${imagemId} excluída do imóvel ${imovelId}`, resultado.storageResult);
++    return res.json(resultado);
++  } catch (err) {
++    console.error(`[MÍDIA] Erro ao excluir foto ${imagemId} do imóvel ${imovelId}:`, err);
++    return res.status(err.statusCode || 500).json({ erro: err.message || 'Erro ao excluir foto' });
++  }
++}
++
++app.delete('/api/imoveis/:imovelId/imagens/:imagemId', verificarCorretor, responderExclusaoImagem);
++app.post('/api/imoveis/:imovelId/imagens/:imagemId/excluir', verificarCorretor, responderExclusaoImagem);
+ 
+ app.put('/api/imoveis/:imovelId/imagens/:imagemId/principal', verificarCorretor, (req, res) => {
+   const { imovelId, imagemId } = req.params;
+@@ -1293,76 +1188,6 @@ app.put('/api/imoveis/:imovelId/imagens/:imagemId/principal', verificarCorretor,
+ // A criação de mídia deve ocorrer por rotas específicas que validam o imóvel e o tipo.
+ 
+ 
+-// Fallback POST para exclusão: alguns ambientes/proxies bloqueiam DELETE.
+-app.post('/api/imoveis/:imovelId/imagens/:imagemId/excluir', verificarCorretor, (req, res) => {
+-  const { imovelId, imagemId } = req.params;
+-
+-  db.get(
+-    `SELECT id, imovel_id, tipo, arquivo, url_externa, principal
+-     FROM imovel_midias
+-     WHERE id = ? AND imovel_id = ? AND tipo = 'imagem'`,
+-    [imagemId, imovelId],
+-    (err, imagem) => {
+-      if (err) {
+-        console.error(`[MÍDIA] Erro ao buscar imagem ${imagemId} do imóvel ${imovelId}:`, err);
+-        return res.status(500).json({ erro: 'Erro ao buscar imagem: ' + (err.message || 'falha no banco de dados') });
+-      }
+-      if (!imagem) return res.status(404).json({ erro: 'Foto não encontrada neste imóvel' });
+-
+-      db.run(
+-        `DELETE FROM imovel_midias WHERE id = ? AND imovel_id = ? AND tipo = 'imagem'`,
+-        [imagemId, imovelId],
+-        function(deleteErr) {
+-          if (deleteErr) return res.status(500).json({ erro: 'Erro ao excluir foto: ' + deleteErr.message });
+-          const alteracoes = arguments.length > 1 && arguments[1] && typeof arguments[1].changes === 'number' ? arguments[1].changes : this.changes;
+-          if (alteracoes !== 1) return res.status(404).json({ erro: 'Foto não encontrada neste imóvel' });
+-
+-          console.log(`[MÍDIA] Foto ${imagemId} excluída do imóvel ${imovelId}`);
+-
+-          // Se a foto excluída era a principal, promove a primeira foto restante.
+-          const promoverProxima = async () => {
+-            await removeStoredAsset(imagem.arquivo);
+-            if (!Number(imagem.principal)) return res.json({
+-              mensagem: 'Foto excluída com sucesso',
+-              novaPrincipal: false
+-            });
+-
+-            db.get(
+-              `SELECT id FROM imovel_midias
+-               WHERE imovel_id = ? AND tipo = 'imagem'
+-               ORDER BY ordem ASC, criado_em ASC
+-               LIMIT 1`,
+-              [imovelId],
+-              (nextErr, proxima) => {
+-                if (nextErr) return res.status(500).json({ erro: 'Foto excluída, mas não foi possível definir a nova principal' });
+-                if (!proxima) return res.json({
+-                  mensagem: 'Foto excluída com sucesso. O imóvel ficou sem foto principal.',
+-                  novaPrincipal: false
+-                });
+-
+-                db.run(
+-                  'UPDATE imovel_midias SET principal = 1 WHERE id = ? AND imovel_id = ? AND tipo = ?',
+-                  [proxima.id, imovelId, 'imagem'],
+-                  (promoteErr) => {
+-                    if (promoteErr) return res.status(500).json({ erro: 'Foto excluída, mas não foi possível definir a nova principal' });
+-                    res.json({
+-                      mensagem: 'Foto excluída e nova foto principal definida com sucesso',
+-                      novaPrincipal: true,
+-                      novaPrincipalId: proxima.id
+-                    });
+-                  }
+-                );
+-              }
+-            );
+-          };
+-
+-          promoverProxima();
+-        }
+-      );
+-    }
+-  );
+-});
+-
+ // (Rota duplicada de foto principal removida na V6.2 — a definição válida está acima.)
+ 
+ // ============= ROTAS DE LEADS =============

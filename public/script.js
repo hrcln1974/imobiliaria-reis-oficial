@@ -8,6 +8,19 @@ function escapeHtml(value) {
 function escapeAttr(value) {
   return escapeHtml(value).replace(/`/g, '&#96;');
 }
+function obterCaracteristicasImovel(imovel) {
+  try {
+    const lista = Array.isArray(imovel?.caracteristicas) ? imovel.caracteristicas : JSON.parse(imovel?.caracteristicas || '[]');
+    return Array.isArray(lista) ? lista.filter(Boolean).map(String) : [];
+  } catch (_) { return []; }
+}
+function htmlCaracteristicasImovel(imovel, limite = 12) {
+  const lista = obterCaracteristicasImovel(imovel);
+  if (!lista.length) return '';
+  const visiveis = lista.slice(0, limite);
+  const extras = lista.length - visiveis.length;
+  return `<div class="imovel-caracteristicas-avancadas">${visiveis.map(c => `<span class="imovel-feature">✨ ${escapeHtml(c)}</span>`).join('')}${extras > 0 ? `<span class="imovel-feature imovel-feature-more">+${extras} outras</span>` : ''}</div>`;
+}
 
 
 // ============= INICIALIZAR =============
@@ -172,6 +185,8 @@ async function criarCartaoImovel(imovel) {
         ${imovel.garagem ? `<div class="imovel-caracteristica">🚗 ${imovel.garagem}</div>` : ''}
       </div>
 
+      ${htmlCaracteristicasImovel(imovel, 6)}
+
       <div class="imovel-descricao">${escapeHtml(descricao)}</div>
       ${galeriaHTML}
 
@@ -278,6 +293,7 @@ async function abrirDetalhes(id) {
                   ${imovel.area ? `<div class="detalhe-item"><strong>📐 Área</strong>${imovel.area}m²</div>` : ''}
                   ${imovel.garagem ? `<div class="detalhe-item"><strong>🚗 Garagem</strong>${imovel.garagem}</div>` : ''}
                 </div>
+                ${htmlCaracteristicasImovel(imovel, 100)}
                 <div class="detalhe-item">
                   <strong>📍 Localização</strong>
                   ${escapeHtml(imovel.endereco)}${imovel.numero ? ', ' + escapeHtml(imovel.numero) : ''}<br>

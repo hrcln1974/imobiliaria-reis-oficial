@@ -1,6 +1,6 @@
 # Imobiliária Fabiano Reis — Site + Painel do Corretor
 
-Versão **6.2.0**
+Versão **6.2.6**
 
 Site institucional de imóveis com painel administrativo do corretor: cadastro de
 imóveis, galeria de fotos e vídeos, destaque na home, captação e gestão de leads.
@@ -21,8 +21,8 @@ imóveis, galeria de fotos e vídeos, destaque na home, captação e gestão de 
 | Frontend | HTML5 · CSS3 · JavaScript (sem framework) |
 | Banco (local) | SQLite 3 (`database.db`, criado automaticamente) |
 | Banco (produção) | PostgreSQL / Neon (`@neondatabase/serverless`) |
-| Mídia (local) | Disco em `public/uploads/` |
-| Mídia (Hostinger) | Disco local em `public/uploads/` quando `BLOB_READ_WRITE_TOKEN` estiver vazio |
+| Mídia (local) | Disco persistente em `MEDIA_ROOT` |
+| Mídia (Hostinger) | Disco persistente em `MEDIA_ROOT` (fallback em `~/fabiano-reis-media`) |
 | Mídia (Vercel) | Vercel Blob (`@vercel/blob`), incluindo client upload para arquivos grandes |
 | Autenticação | JWT em cookie **HttpOnly** + `bcryptjs` |
 | Deploy | Vercel (`api/index.js` + `vercel.json`) ou qualquer host Node |
@@ -123,7 +123,7 @@ Use um proxy reverso com HTTPS (o cookie de sessão usa `Secure` em produção).
 - **WhatsApp**: links diretos `wa.me/5521991822134` (botão flutuante e redes sociais).
 - **Instagram / Facebook**: links do corretor no cartão de apresentação.
 - **Formulário de contato**: grava lead real via `POST /api/leads` (persistido no banco e visível no painel). Não envia e-mail — para notificação por e-mail é necessário integrar um serviço externo (SMTP/Resend) — **[NÃO CONFIGURADO]**.
-- **Mídia**: Hostinger usa `public/uploads/` por padrão; Vercel usa Vercel Blob (fotos até 5 MB e vídeos até 50 MB), com client upload para arquivos grandes.
+- **Mídia**: Hostinger usa `MEDIA_ROOT` persistente; Vercel usa Vercel Blob (fotos até 5 MB e vídeos até 50 MB), com client upload para arquivos grandes.
 - **Vídeos por URL**: aceita MP4/WebM/MOV diretos e links de YouTube/Vimeo (embed).
 
 ## Estrutura
@@ -188,3 +188,19 @@ Use um proxy reverso com HTTPS (o cookie de sessão usa `Secure` em produção).
 ## Histórico
 
 Consulte `CHANGELOG.md` e `docs/historico/` (documentação das versões 3.x a 6.1).
+
+## V6.2.5 — Hostinger: mídia persistente
+
+Na Hostinger, as fotos e vídeos não são mais gravados no diretório do deploy. O servidor usa `MEDIA_ROOT` para um armazenamento persistente.
+
+Recomendado na Hostinger:
+
+```env
+MEDIA_ROOT=/home/SEU_USUARIO/fabiano-reis-media
+```
+
+Se `MEDIA_ROOT` não for definido, o sistema usa automaticamente `$HOME/fabiano-reis-media` (ou `storage/uploads` quando `HOME` não estiver disponível).
+
+As URLs públicas continuam no formato `/uploads/imagens/...` e `/uploads/videos/...`.
+
+O upload de fotos é processado uma foto por requisição. A exclusão de fotos usa uma única rotina compartilhada pelas rotas `DELETE` e `POST /excluir`.

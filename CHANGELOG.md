@@ -1,3 +1,12 @@
+# V6.2.6 — Correção integral e estabilidade
+
+- Corrigida a exclusão de vídeos para tratar o armazenamento antes do DELETE no banco e capturar falhas assíncronas corretamente.
+- Mantido o campo `caracteristicas` integrado ao cadastro, edição e PostgreSQL/Neon.
+- Mantida a inicialização SQLite com espera pela criação/migração do schema.
+- Mantidos uploads de fotos unitários, upload direto para Blob no Vercel e armazenamento persistente na Hostinger.
+- Mantidas as rotas compatíveis de exclusão de fotos (POST e DELETE).
+- Preflight atualizado para validar as correções críticas da V6.2.6.
+
 # V6.2.4 — Correção definitiva de exclusão de fotos
 
 - Corrigido o contexto `this` do adaptador PostgreSQL/Neon para callbacks compatíveis com sqlite3.
@@ -71,3 +80,11 @@
 - Migração SQLite → PostgreSQL + Blob.
 - Correção do erro de atualização de imóveis observado na V5.2 em produção.
 - Preservação do banner, galeria, acesso do corretor e identidade visual V5.2.
+
+
+## V6.2.5 — mídia persistente Hostinger
+- Armazenamento local movido para MEDIA_ROOT persistente.
+- /uploads/* servido diretamente de MEDIA_ROOT.
+- Upload de fotos processado uma foto por requisição.
+- Exclusão de fotos centralizada em uma única rotina.
+- Migração automática e não destrutiva de public/uploads antigos.

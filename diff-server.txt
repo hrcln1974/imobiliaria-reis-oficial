@@ -1,0 +1,723 @@
+diff --git a/server.js b/server.js
+index 4e730f1..b3ee06e 100644
+--- a/server.js
++++ b/server.js
+@@ -19,6 +19,7 @@ if (db.mode === 'postgres') {
+ const app = express();
+ app.disable('x-powered-by');
+ const PORT = process.env.PORT || 3000;
++const MEDIA_ROOT = path.resolve(process.env.MEDIA_ROOT || (process.env.HOME ? path.join(process.env.HOME, 'fabiano-reis-media') : path.join(process.cwd(), 'storage', 'uploads')));
+ const IS_VERCEL = Boolean(process.env.VERCEL);
+ const SECRET = process.env.JWT_SECRET || (IS_VERCEL ? '' : 'dev-only-secret-change-me');
+ if (IS_VERCEL && !SECRET) {
+@@ -64,20 +65,41 @@ app.use((req, res, next) => {
+ 
+ // O dashboard é protegido por cookie HttpOnly; os demais arquivos públicos continuam sendo servidos abaixo.
+ 
+-// Armazenamento: disco local na V5.2/ambiente local; Vercel usa Vercel Blob.
+-// PostgreSQL/Neon não implica Vercel Blob.
+-// Na Hostinger (Node tradicional), sem BLOB_READ_WRITE_TOKEN, usamos disco local persistente.
+-// Na Vercel, quando o Blob está disponível, usamos Blob para evitar filesystem efêmero.
++// Armazenamento: Vercel usa Vercel Blob; Hostinger usa uma pasta persistente.
++// IMPORTANTE: o banco guarda apenas a URL relativa (/uploads/...), enquanto os
++// arquivos locais ficam fora do diretório do deploy para não serem apagados em
++// uma nova publicação. MEDIA_ROOT pode ser configurado na Hostinger.
+ const USE_BLOB = db.mode === 'postgres' && (IS_VERCEL || Boolean(process.env.BLOB_READ_WRITE_TOKEN));
+-// Diretórios de mídia local. Em Vercel/Blob não são usados (filesystem read-only).
++const LOCAL_MEDIA_ROOT = MEDIA_ROOT;
++
+ if (!IS_VERCEL && !USE_BLOB) {
+   for (const pasta of ['imagens', 'videos']) {
+-    try { fs.mkdirSync(path.join(__dirname, 'public', 'uploads', pasta), { recursive: true }); } catch (_) {}
++    try { fs.mkdirSync(path.join(LOCAL_MEDIA_ROOT, pasta), { recursive: true }); } catch (_) {}
++  }
++
++  // Migra com segurança arquivos da instalação antiga para o armazenamento persistente.
++  // Não altera o banco nem apaga a origem; assim o deploy pode ser revertido sem perda.
++  for (const pasta of ['imagens', 'videos']) {
++    const origem = path.join(__dirname, 'public', 'uploads', pasta);
++    const destino = path.join(LOCAL_MEDIA_ROOT, pasta);
++    try {
++      if (fs.existsSync(origem) && fs.existsSync(destino)) {
++        for (const nome of fs.readdirSync(origem)) {
++          if (nome === '.gitkeep') continue;
++          const src = path.join(origem, nome);
++          const dst = path.join(destino, nome);
++          if (fs.statSync(src).isFile() && !fs.existsSync(dst)) fs.copyFileSync(src, dst);
++        }
++      }
++    } catch (err) {
++      console.warn(`[MEDIA] Não foi possível migrar ${pasta}:`, err.message);
++    }
+   }
+ }
++
+ const storage = USE_BLOB ? multer.memoryStorage() : multer.diskStorage({
+   destination: (req, file, cb) => {
+-    const dir = path.join(__dirname, 'public/uploads/imagens');
++    const dir = path.join(LOCAL_MEDIA_ROOT, 'imagens');
+     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+     cb(null, dir);
+   },
+@@ -99,7 +121,7 @@ const upload = multer({
+ 
+ const videoStorage = USE_BLOB ? multer.memoryStorage() : multer.diskStorage({
+   destination: (req, file, cb) => {
+-    const dir = path.join(__dirname, 'public/uploads/videos');
++    const dir = path.join(LOCAL_MEDIA_ROOT, 'videos');
+     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+     cb(null, dir);
+   },
+@@ -137,23 +159,36 @@ async function storeBuffer(buffer, filename, contentType, folder) {
+     });
+     return blob.url;
+   }
+-  const dir = path.join(__dirname, 'public', 'uploads', folder);
++  const dir = path.join(LOCAL_MEDIA_ROOT, folder);
+   fs.mkdirSync(dir, { recursive: true });
+   fs.writeFileSync(path.join(dir, filename), buffer);
+   return `/uploads/${folder}/${filename}`;
+ }
+ 
+ async function removeStoredAsset(asset) {
+-  if (!asset) return;
++  if (!asset) return { removed: false, missing: true };
++
+   if (/^https?:\/\//i.test(asset)) {
+-    if (USE_BLOB && /\.blob\.vercel-storage\.com/i.test(asset)) {
+-      try { await blobDel(asset); } catch (_) {}
++    if (/\.blob\.vercel-storage\.com/i.test(asset) && blobDel && (USE_BLOB || process.env.BLOB_READ_WRITE_TOKEN)) {
++      try { await blobDel(asset); return { removed: true, missing: false }; }
++      catch (err) { throw new Error(`Não foi possível excluir o arquivo do Blob: ${err.message}`); }
+     }
+-    return;
++    return { removed: false, missing: false, external: true };
+   }
+-  if (asset.startsWith('/uploads/')) {
+-    const filePath = path.join(__dirname, 'public', asset.replace(/^\//, ''));
+-    try { await fs.promises.unlink(filePath); } catch (_) {}
++
++  if (!asset.startsWith('/uploads/')) return { removed: false, missing: false, external: true };
++
++  const relative = asset.replace(/^\/uploads\//, '');
++  const filePath = path.resolve(LOCAL_MEDIA_ROOT, relative);
++  const root = path.resolve(LOCAL_MEDIA_ROOT) + path.sep;
++  if (!filePath.startsWith(root)) throw new Error('Caminho de mídia inválido.');
++
++  try {
++    await fs.promises.unlink(filePath);
++    return { removed: true, missing: false };
++  } catch (err) {
++    if (err.code === 'ENOENT') return { removed: false, missing: true };
++    throw new Error(`Não foi possível excluir o arquivo ${relative}: ${err.message}`);
+   }
+ }
+ 
+@@ -178,14 +213,22 @@ function initDb() {
+     return db.ready.then(() => true);
+   }
+ 
+-  db.serialize(() => {
+-    db.run(`CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, email TEXT UNIQUE NOT NULL, senha TEXT NOT NULL, tipo TEXT DEFAULT 'cliente', ativo INTEGER DEFAULT 1, criado_em DATETIME DEFAULT CURRENT_TIMESTAMP)`);
+-    db.run(`CREATE TABLE IF NOT EXISTS imoveis (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT NOT NULL, descricao TEXT, preco REAL NOT NULL, tipo TEXT NOT NULL, operacao TEXT NOT NULL, endereco TEXT NOT NULL, numero TEXT, bairro TEXT NOT NULL, cidade TEXT NOT NULL, cep TEXT, quartos INTEGER, banheiros INTEGER, area REAL, garagem INTEGER DEFAULT 0, piscina INTEGER DEFAULT 0, destaque INTEGER DEFAULT 0, ativo INTEGER DEFAULT 1, criado_em DATETIME DEFAULT CURRENT_TIMESTAMP)`);
+-    db.run(`CREATE TABLE IF NOT EXISTS imovel_midias (id INTEGER PRIMARY KEY AUTOINCREMENT, imovel_id INTEGER NOT NULL, tipo TEXT NOT NULL, arquivo TEXT NOT NULL, url_externa TEXT, ordem INTEGER DEFAULT 0, principal INTEGER DEFAULT 0, criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(imovel_id) REFERENCES imoveis(id))`);
+-    db.run(`CREATE TABLE IF NOT EXISTS leads (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, email TEXT NOT NULL, telefone TEXT NOT NULL, whatsapp TEXT, mensagem TEXT, imovel_id INTEGER, tipo_interesse TEXT, status TEXT DEFAULT 'novo', criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(imovel_id) REFERENCES imoveis(id))`);
++  return new Promise((resolve, reject) => {
++    db.serialize(() => {
++      db.run(`CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, email TEXT UNIQUE NOT NULL, senha TEXT NOT NULL, tipo TEXT DEFAULT 'cliente', ativo INTEGER DEFAULT 1, criado_em DATETIME DEFAULT CURRENT_TIMESTAMP)`);
++      db.run(`CREATE TABLE IF NOT EXISTS imoveis (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT NOT NULL, descricao TEXT, preco REAL NOT NULL, tipo TEXT NOT NULL, operacao TEXT NOT NULL, endereco TEXT NOT NULL, numero TEXT, bairro TEXT NOT NULL, cidade TEXT NOT NULL, cep TEXT, quartos INTEGER, banheiros INTEGER, area REAL, garagem INTEGER DEFAULT 0, piscina INTEGER DEFAULT 0, caracteristicas TEXT, destaque INTEGER DEFAULT 0, ativo INTEGER DEFAULT 1, criado_em DATETIME DEFAULT CURRENT_TIMESTAMP)`);
++      db.run(`CREATE TABLE IF NOT EXISTS imovel_midias (id INTEGER PRIMARY KEY AUTOINCREMENT, imovel_id INTEGER NOT NULL, tipo TEXT NOT NULL, arquivo TEXT NOT NULL, url_externa TEXT, ordem INTEGER DEFAULT 0, principal INTEGER DEFAULT 0, criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(imovel_id) REFERENCES imoveis(id))`);
++      db.run(`CREATE TABLE IF NOT EXISTS leads (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, email TEXT NOT NULL, telefone TEXT NOT NULL, whatsapp TEXT, mensagem TEXT, imovel_id INTEGER, tipo_interesse TEXT, status TEXT DEFAULT 'novo', criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(imovel_id) REFERENCES imoveis(id))`);
++      db.all(`PRAGMA table_info(imoveis)`, (err, columns) => {
++        if (err) return reject(err);
++        if ((columns || []).some(c => c.name === 'caracteristicas')) return resolve(true);
++        db.run(`ALTER TABLE imoveis ADD COLUMN caracteristicas TEXT`, err2 => {
++          if (err2) return reject(err2);
++          resolve(true);
++        });
++      });
++    });
+   });
+-
+-  return Promise.resolve(true);
+ }
+ const dbReady = initDb();
+ 
+@@ -261,6 +304,15 @@ app.get('/dashboard.html', protegerPaginaCorretor, (req, res) => {
+   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+ });
+ 
++// Mídia persistente da Hostinger: /uploads/* aponta para MEDIA_ROOT.
++if (!USE_BLOB) {
++  app.use('/uploads', express.static(LOCAL_MEDIA_ROOT, {
++    fallthrough: true,
++    maxAge: process.env.NODE_ENV === 'production' ? '7d' : 0,
++    setHeaders: (res) => { res.setHeader('Cache-Control', 'public, max-age=604800, immutable'); }
++  }));
++}
++
+ // Arquivos públicos
+ app.use(express.static(path.join(__dirname, 'public'), {
+   setHeaders: (res, filePath) => {
+@@ -443,12 +495,13 @@ app.get('/api/imoveis/:id', (req, res) => {
+ });
+ 
+ app.post('/api/imoveis', verificarCorretor, (req, res) => {
+-  const { titulo, descricao, preco, tipo, operacao, endereco, numero, bairro, cidade, cep, quartos, banheiros, area, garagem, piscina, destaque } = req.body;
++  const { titulo, descricao, preco, tipo, operacao, endereco, numero, bairro, cidade, cep, quartos, banheiros, area, garagem, piscina, destaque, caracteristicas } = req.body;
++  const listaCaracteristicas = Array.isArray(caracteristicas) ? caracteristicas.map(v => String(v).trim()).filter(Boolean).slice(0, 100) : [];
+ 
+   db.run(
+-    `INSERT INTO imoveis (titulo, descricao, preco, tipo, operacao, endereco, numero, bairro, cidade, cep, quartos, banheiros, area, garagem, piscina, destaque)
+-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+-    [titulo, descricao, preco, tipo, operacao, endereco, numero, bairro, cidade, cep, quartos, banheiros, area, garagem, piscina, destaque || 0],
++    `INSERT INTO imoveis (titulo, descricao, preco, tipo, operacao, endereco, numero, bairro, cidade, cep, quartos, banheiros, area, garagem, piscina, caracteristicas, destaque)
++     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
++    [titulo, descricao, preco, tipo, operacao, endereco, numero, bairro, cidade, cep, quartos, banheiros, area, garagem, piscina, JSON.stringify(listaCaracteristicas), destaque || 0],
+     function(err) {
+       if (err) return res.status(500).json({ erro: 'Erro ao criar' });
+       res.json({ id: this.lastID, mensagem: 'Imóvel criado com sucesso' });
+@@ -461,7 +514,7 @@ app.put('/api/imoveis/:id', verificarCorretor, (req, res) => {
+   const camposPermitidos = [
+     'titulo','descricao','preco','tipo','operacao','endereco','numero',
+     'bairro','cidade','cep','quartos','banheiros','area','garagem',
+-    'piscina','destaque','ativo'
++    'piscina','caracteristicas','destaque','ativo'
+   ];
+ 
+   const entradas = Object.entries(req.body || {})
+@@ -474,6 +527,7 @@ app.put('/api/imoveis/:id', verificarCorretor, (req, res) => {
+   const sets = entradas.map(([campo]) => `${campo} = ?`).join(', ');
+   const valores = entradas.map(([campo, valor]) => {
+     if (['piscina','destaque','ativo'].includes(campo)) return Number(Boolean(valor));
++    if (campo === 'caracteristicas') { const lista = Array.isArray(valor) ? valor.map(v => String(v).trim()).filter(Boolean).slice(0, 100) : []; return JSON.stringify(lista); }
+     if (['quartos','banheiros','garagem'].includes(campo)) return Number(valor) || 0;
+     if (['preco','area'].includes(campo)) return Number(valor) || 0;
+     return valor;
+@@ -499,102 +553,38 @@ app.delete('/api/imoveis/:id', verificarCorretor, (req, res) => {
+ 
+ // Exclusão definitiva: remove o imóvel, as mídias no banco e os arquivos associados.
+ // É separada da desativação lógica para evitar apagar anúncios por engano.
+-app.post(
+-  '/api/imoveis/:imovelId/imagens/:imagemId/excluir',
+-  verificarCorretor,
+-  async (req, res) => {
+-    const { imovelId, imagemId } = req.params;
+-
+-    try {
+-      const imagem = await new Promise((resolve, reject) => {
+-        db.get(
+-          `SELECT id, imovel_id, arquivo, url_externa, principal
+-             FROM imovel_midias
+-            WHERE id = ?
+-              AND imovel_id = ?
+-              AND tipo = 'imagem'`,
+-          [imagemId, imovelId],
+-          (err, row) => {
+-            if (err) return reject(err);
+-            resolve(row);
+-          }
+-        );
+-      });
+-
+-      if (!imagem) {
+-        return res.status(404).json({
+-          erro: 'Foto não encontrada para este imóvel.'
+-        });
+-      }
++app.post('/api/imoveis/:id/excluir-definitivo', verificarCorretor, (req, res) => {
++  const { id } = req.params;
++  db.get('SELECT id, titulo FROM imoveis WHERE id = ?', [id], (err, imovel) => {
++    if (err) return res.status(500).json({ erro: 'Erro ao localizar imóvel' });
++    if (!imovel) return res.status(404).json({ erro: 'Imóvel não encontrado' });
+ 
+-      // 1. PRIMEIRO remove o registro do PostgreSQL
+-      await new Promise((resolve, reject) => {
+-        db.run(
+-          `DELETE FROM imovel_midias
+-            WHERE id = ?
+-              AND imovel_id = ?
+-              AND tipo = 'imagem'`,
+-          [imagemId, imovelId],
+-          function (err) {
+-            if (err) return reject(err);
+-            resolve(this);
++    db.all('SELECT id, arquivo FROM imovel_midias WHERE imovel_id = ?', [id], (mediaErr, midias) => {
++      if (mediaErr) return res.status(500).json({ erro: 'Erro ao localizar mídias do imóvel' });
++      db.run('DELETE FROM imovel_midias WHERE imovel_id = ?', [id], mediaDeleteErr => {
++        if (mediaDeleteErr) return res.status(500).json({ erro: 'Erro ao remover mídias do imóvel: ' + mediaDeleteErr.message });
++        db.run('DELETE FROM imoveis WHERE id = ?', [id], async function(deleteErr) {
++          if (deleteErr) return res.status(500).json({ erro: 'Erro ao excluir imóvel: ' + deleteErr.message });
++          if (this.changes !== 1) return res.status(404).json({ erro: 'Imóvel não encontrado' });
++
++          let falhasArquivos = 0;
++          for (const media of (midias || [])) {
++            try { await removeStoredAsset(media.arquivo); } catch (_) { falhasArquivos += 1; }
+           }
+-        );
+-      });
+-
+-      // 2. DEPOIS remove o arquivo físico/Blob
+-      await removeStoredAsset(imagem.arquivo);
+-
+-      // 3. Se a excluída era principal, escolhe outra
+-      if (Number(imagem.principal) === 1) {
+-        const proxima = await new Promise((resolve, reject) => {
+-          db.get(
+-            `SELECT id
+-               FROM imovel_midias
+-              WHERE imovel_id = ?
+-                AND tipo = 'imagem'
+-              ORDER BY ordem ASC, id ASC
+-              LIMIT 1`,
+-            [imovelId],
+-            (err, row) => {
+-              if (err) return reject(err);
+-              resolve(row);
+-            }
+-          );
+-        });
+-
+-        if (proxima) {
+-          await new Promise((resolve, reject) => {
+-            db.run(
+-              `UPDATE imovel_midias
+-                  SET principal = 1
+-                WHERE id = ?
+-                  AND imovel_id = ?`,
+-              [proxima.id, imovelId],
+-              function (err) {
+-                if (err) return reject(err);
+-                resolve(this);
+-              }
+-            );
++          res.json({
++            mensagem: falhasArquivos
++              ? 'Imóvel excluído do banco. Algumas mídias não puderam ser removidas do armazenamento.'
++              : 'Imóvel e suas mídias excluídos definitivamente com sucesso.',
++            id: Number(id),
++            midiasExcluidas: (midias || []).length,
++            falhasArquivos
+           });
+-        }
+-      }
+-
+-      return res.json({
+-        sucesso: true,
+-        mensagem: 'Foto excluída com sucesso.',
+-        id: Number(imagemId)
++        });
+       });
++    });
++  });
++});
+ 
+-    } catch (err) {
+-      console.error('[EXCLUIR-IMAGEM] ERRO:', err);
+-
+-      return res.status(500).json({
+-        erro: err?.message || 'Erro ao excluir foto.'
+-      });
+-    }
+-  }
+-);
+ app.post('/api/logout', (req, res) => {
+   clearAuthCookie(res);
+   res.json({ mensagem: 'Sessão encerrada' });
+@@ -717,143 +707,55 @@ app.post('/api/upload', verificarCorretor, upload.single('imagem'), async (req,
+ 
+ const uploadFotos = multer({
+   storage,
+-  limits: { fileSize: 5 * 1024 * 1024, files: 12 },
++  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+   fileFilter: (req, file, cb) => {
+-    const permitidos = [
+-      'image/jpeg',
+-      'image/png',
+-      'image/webp',
+-      'image/gif'
+-    ];
+-
+-    if (!permitidos.includes(file.mimetype)) {
+-      return cb(new Error('Formato de imagem não permitido'));
+-    }
+-
++    const permitidos = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
++    if (!permitidos.includes(file.mimetype)) return cb(new Error('Formato de imagem não permitido'));
+     cb(null, true);
+   }
+ });
+ 
+-app.post(
+-  '/api/imoveis/:id/fotos',
+-  verificarCorretor,
+-  uploadFotos.array('imagens', 12),
+-  async (req, res) => {
+-    const { id } = req.params;
+-
+-    try {
+-      const imovel = await new Promise((resolve, reject) => {
+-        db.get(
+-          'SELECT id FROM imoveis WHERE id = ?',
+-          [id],
+-          (err, row) => err ? reject(err) : resolve(row)
+-        );
+-      });
+-
+-      if (!imovel) {
+-        return res.status(404).json({
+-          erro: 'Imóvel não encontrado'
+-        });
+-      }
+-
+-      const arquivos = req.files || [];
+-
+-      if (!arquivos.length) {
+-        return res.status(400).json({
+-          erro: 'Nenhuma foto enviada'
+-        });
+-      }
+-
+-      const row = await new Promise((resolve, reject) => {
+-        db.get(
+-          'SELECT COUNT(*) AS total FROM imovel_midias WHERE imovel_id = ?',
+-          [id],
+-          (err, value) => err ? reject(err) : resolve(value)
+-        );
+-      });
+-
+-      const mainRow = await new Promise((resolve, reject) => {
+-        db.get(
+-          'SELECT COUNT(*) AS principal FROM imovel_midias WHERE imovel_id = ? AND principal = 1',
+-          [id],
+-          (err, value) => err ? reject(err) : resolve(value)
+-        );
+-      });
+-
+-      const ordemInicial = Number(row?.total || 0);
+-      const jaTemPrincipal = Number(mainRow?.principal || 0) > 0;
+-
+-      const imagens = [];
++// Uma foto por requisição. Isso evita uploads multipart grandes parcialmente processados
++// na Hostinger e permite identificar exatamente qual arquivo falhou.
++app.post('/api/imoveis/:id/fotos', verificarCorretor, uploadFotos.single('imagens'), async (req, res) => {
++  const { id } = req.params;
++  let arquivoSalvo = null;
+ 
+-      for (let index = 0; index < arquivos.length; index++) {
+-        const file = arquivos[index];
++  try {
++    const imovel = await new Promise((resolve, reject) => db.get('SELECT id FROM imoveis WHERE id = ?', [id], (err, row) => err ? reject(err) : resolve(row)));
++    if (!imovel) return res.status(404).json({ erro: 'Imóvel não encontrado' });
+ 
+-        const arquivo = await storeUploadedFile(
+-          file,
+-          'imagens'
+-        );
++    const file = req.file;
++    if (!file) return res.status(400).json({ erro: 'Nenhuma foto enviada' });
+ 
+-        const principal =
+-          !jaTemPrincipal && index === 0 ? 1 : 0;
++    const row = await new Promise((resolve, reject) => db.get("SELECT COUNT(*) AS total FROM imovel_midias WHERE imovel_id = ? AND tipo = 'imagem'", [id], (err, value) => err ? reject(err) : resolve(value)));
++    const mainRow = await new Promise((resolve, reject) => db.get("SELECT COUNT(*) AS principal FROM imovel_midias WHERE imovel_id = ? AND tipo = 'imagem' AND principal = 1", [id], (err, value) => err ? reject(err) : resolve(value)));
++    const ordem = Number(row?.total || 0);
++    const principal = Number(mainRow?.principal || 0) === 0 ? 1 : 0;
+ 
+-        const result = await new Promise((resolve, reject) => {
+-          db.run(
+-            `INSERT INTO imovel_midias
+-              (imovel_id, tipo, arquivo, url_externa, ordem, principal)
+-             VALUES (?, ?, ?, ?, ?, ?)`,
+-            [
+-              id,
+-              'imagem',
+-              arquivo,
+-              '',
+-              ordemInicial + index,
+-              principal
+-            ],
+-            function(err) {
+-              if (err) {
+-                reject(err);
+-              } else {
+-                resolve(this);
+-              }
+-            }
+-          );
+-        });
++    arquivoSalvo = await storeUploadedFile(file, 'imagens');
++    const result = await new Promise((resolve, reject) => db.run(
++      `INSERT INTO imovel_midias (imovel_id, tipo, arquivo, url_externa, ordem, principal) VALUES (?, 'imagem', ?, '', ?, ?)`,
++      [id, arquivoSalvo, ordem, principal],
++      function(err) { err ? reject(err) : resolve(this); }
++    ));
+ 
+-        imagens.push({
+-          id: result.lastID,
+-          arquivo
+-        });
++    console.log(`[UPLOAD-FOTOS] Foto ${result.lastID} salva para imóvel ${id}: ${arquivoSalvo}`);
++    return res.json({
++      mensagem: 'Foto enviada com sucesso',
++      imagem: { id: result.lastID, arquivo: arquivoSalvo, principal: Boolean(principal) },
++      imagens: [arquivoSalvo]
++    });
++  } catch (err) {
++    if (arquivoSalvo) {
++      try { await removeStoredAsset(arquivoSalvo); } catch (cleanupErr) {
++        console.error('[UPLOAD-FOTOS] Falha ao limpar arquivo após erro:', cleanupErr.message);
+       }
+-
+-      res.json({
+-        mensagem: `${arquivos.length} foto(s) enviada(s) com sucesso`,
+-        imagens: imagens.map(v => v.arquivo)
+-      });
+-
+-    } catch (err) {
+-      console.error('[UPLOAD-FOTOS] ERRO:', {
+-        message: err?.message || null,
+-        name: err?.name || null,
+-        code: err?.code || null,
+-        stack: err?.stack || null,
+-        imovelId: id,
+-        useBlob: USE_BLOB,
+-        hasBlobToken: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
+-        hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
+-        files: (req.files || []).map(file => ({
+-          originalname: file.originalname,
+-          mimetype: file.mimetype,
+-          size: file.size
+-        }))
+-      });
+-
+-      res.status(500).json({
+-        erro: err?.message || 'Erro ao salvar as fotos',
+-        codigo: err?.code || null
+-      });
+     }
++    console.error('[UPLOAD-FOTOS] ERRO:', { message: err?.message, code: err?.code, stack: err?.stack, imovelId: id });
++    return res.status(500).json({ erro: err?.message || 'Erro ao salvar a foto', codigo: err?.code || null });
+   }
+-);
++});
+ 
+ // ============= ROTAS DE VÍDEOS =============
+ 
+@@ -1080,6 +982,7 @@ async function importSocialImage(sourceUrl) {
+   } finally { clearTimeout(timer); }
+ }
+ 
++
+ // ============= ROTAS DE IMAGENS =============
+ 
+ app.get('/api/imoveis/:id/imagens', (req, res) => {
+@@ -1191,74 +1094,66 @@ app.post('/api/imoveis/:id/imagens', verificarCorretor, (req, res) => {
+   });
+ });
+ 
+-app.delete('/api/imoveis/:imovelId/imagens/:imagemId', verificarCorretor, (req, res) => {
+-  const { imovelId, imagemId } = req.params;
+-
+-  db.get(
+-    `SELECT id, imovel_id, tipo, arquivo, url_externa, principal
+-     FROM imovel_midias
+-     WHERE id = ? AND imovel_id = ? AND tipo = 'imagem'`,
++async function excluirImagemDefinitivamente(imovelId, imagemId) {
++  const imagem = await new Promise((resolve, reject) => db.get(
++    `SELECT id, imovel_id, tipo, arquivo, url_externa, principal FROM imovel_midias WHERE id = ? AND imovel_id = ? AND tipo = 'imagem'`,
+     [imagemId, imovelId],
+-    (err, imagem) => {
+-      if (err) {
+-        console.error(`[MÍDIA] Erro ao buscar imagem ${imagemId} do imóvel ${imovelId}:`, err);
+-        return res.status(500).json({ erro: 'Erro ao buscar imagem: ' + (err.message || 'falha no banco de dados') });
+-      }
+-      if (!imagem) return res.status(404).json({ erro: 'Foto não encontrada neste imóvel' });
++    (err, row) => err ? reject(err) : resolve(row)
++  ));
++  if (!imagem) { const err = new Error('Foto não encontrada neste imóvel'); err.statusCode = 404; throw err; }
+ 
+-      db.run(
+-        `DELETE FROM imovel_midias WHERE id = ? AND imovel_id = ? AND tipo = 'imagem'`,
+-        [imagemId, imovelId],
+-        function(deleteErr) {
+-          if (deleteErr) return res.status(500).json({ erro: 'Erro ao excluir foto: ' + deleteErr.message });
+-          const alteracoes = arguments.length > 1 && arguments[1] && typeof arguments[1].changes === 'number' ? arguments[1].changes : this.changes;
+-          if (alteracoes !== 1) return res.status(404).json({ erro: 'Foto não encontrada neste imóvel' });
+-
+-          console.log(`[MÍDIA] Foto ${imagemId} excluída do imóvel ${imovelId}`);
+-
+-          // Se a foto excluída era a principal, promove a primeira foto restante.
+-          const promoverProxima = async () => {
+-            await removeStoredAsset(imagem.arquivo);
+-            if (!Number(imagem.principal)) return res.json({
+-              mensagem: 'Foto excluída com sucesso',
+-              novaPrincipal: false
+-            });
+-
+-            db.get(
+-              `SELECT id FROM imovel_midias
+-               WHERE imovel_id = ? AND tipo = 'imagem'
+-               ORDER BY ordem ASC, criado_em ASC
+-               LIMIT 1`,
+-              [imovelId],
+-              (nextErr, proxima) => {
+-                if (nextErr) return res.status(500).json({ erro: 'Foto excluída, mas não foi possível definir a nova principal' });
+-                if (!proxima) return res.json({
+-                  mensagem: 'Foto excluída com sucesso. O imóvel ficou sem foto principal.',
+-                  novaPrincipal: false
+-                });
+-
+-                db.run(
+-                  'UPDATE imovel_midias SET principal = 1 WHERE id = ? AND imovel_id = ? AND tipo = ?',
+-                  [proxima.id, imovelId, 'imagem'],
+-                  (promoteErr) => {
+-                    if (promoteErr) return res.status(500).json({ erro: 'Foto excluída, mas não foi possível definir a nova principal' });
+-                    res.json({
+-                      mensagem: 'Foto excluída e nova foto principal definida com sucesso',
+-                      novaPrincipal: true,
+-                      novaPrincipalId: proxima.id
+-                    });
+-                  }
+-                );
+-              }
+-            );
+-          };
+-
+-          promoverProxima();
+-        }
+-      );
++  // Primeiro garante que o arquivo local/Blob pode ser removido.
++  // ENOENT é tratado como já removido, permitindo limpar registros órfãos.
++  const storageResult = await removeStoredAsset(imagem.arquivo);
++
++  const deleted = await new Promise((resolve, reject) => db.run(
++    `DELETE FROM imovel_midias WHERE id = ? AND imovel_id = ? AND tipo = 'imagem'`,
++    [imagemId, imovelId],
++    function(err) { err ? reject(err) : resolve(this.changes); }
++  ));
++  if (deleted !== 1) { const err = new Error('Foto não encontrada neste imóvel'); err.statusCode = 404; throw err; }
++
++  let novaPrincipal = false;
++  let novaPrincipalId = null;
++  if (Number(imagem.principal)) {
++    const proxima = await new Promise((resolve, reject) => db.get(
++      `SELECT id FROM imovel_midias WHERE imovel_id = ? AND tipo = 'imagem' ORDER BY ordem ASC, criado_em ASC LIMIT 1`,
++      [imovelId],
++      (err, row) => err ? reject(err) : resolve(row)
++    ));
++    if (proxima) {
++      await new Promise((resolve, reject) => db.run(
++        'UPDATE imovel_midias SET principal = 1 WHERE id = ? AND imovel_id = ? AND tipo = ?',
++        [proxima.id, imovelId, 'imagem'],
++        function(err) { err ? reject(err) : resolve(this); }
++      ));
++      novaPrincipal = true;
++      novaPrincipalId = Number(proxima.id);
+     }
+-  );
+-});
++  }
++
++  return {
++    storageResult,
++    novaPrincipal,
++    novaPrincipalId,
++    mensagem: novaPrincipal ? 'Foto excluída e nova foto principal definida com sucesso' : 'Foto excluída com sucesso'
++  };
++}
++
++async function responderExclusaoImagem(req, res) {
++  const { imovelId, imagemId } = req.params;
++  try {
++    const resultado = await excluirImagemDefinitivamente(imovelId, imagemId);
++    console.log(`[MÍDIA] Foto ${imagemId} excluída do imóvel ${imovelId}`, resultado.storageResult);
++    return res.json(resultado);
++  } catch (err) {
++    console.error(`[MÍDIA] Erro ao excluir foto ${imagemId} do imóvel ${imovelId}:`, err);
++    return res.status(err.statusCode || 500).json({ erro: err.message || 'Erro ao excluir foto' });
++  }
++}
++
++app.delete('/api/imoveis/:imovelId/imagens/:imagemId', verificarCorretor, responderExclusaoImagem);
++app.post('/api/imoveis/:imovelId/imagens/:imagemId/excluir', verificarCorretor, responderExclusaoImagem);
+ 
+ app.put('/api/imoveis/:imovelId/imagens/:imagemId/principal', verificarCorretor, (req, res) => {
+   const { imovelId, imagemId } = req.params;
+@@ -1293,76 +1188,6 @@ app.put('/api/imoveis/:imovelId/imagens/:imagemId/principal', verificarCorretor,
+ // A criação de mídia deve ocorrer por rotas específicas que validam o imóvel e o tipo.
+ 
+ 
+-// Fallback POST para exclusão: alguns ambientes/proxies bloqueiam DELETE.
+-app.post('/api/imoveis/:imovelId/imagens/:imagemId/excluir', verificarCorretor, (req, res) => {
+-  const { imovelId, imagemId } = req.params;
+-
+-  db.get(
+-    `SELECT id, imovel_id, tipo, arquivo, url_externa, principal
+-     FROM imovel_midias
+-     WHERE id = ? AND imovel_id = ? AND tipo = 'imagem'`,
+-    [imagemId, imovelId],
+-    (err, imagem) => {
+-      if (err) {
+-        console.error(`[MÍDIA] Erro ao buscar imagem ${imagemId} do imóvel ${imovelId}:`, err);
+-        return res.status(500).json({ erro: 'Erro ao buscar imagem: ' + (err.message || 'falha no banco de dados') });
+-      }
+-      if (!imagem) return res.status(404).json({ erro: 'Foto não encontrada neste imóvel' });
+-
+-      db.run(
+-        `DELETE FROM imovel_midias WHERE id = ? AND imovel_id = ? AND tipo = 'imagem'`,
+-        [imagemId, imovelId],
+-        function(deleteErr) {
+-          if (deleteErr) return res.status(500).json({ erro: 'Erro ao excluir foto: ' + deleteErr.message });
+-          const alteracoes = arguments.length > 1 && arguments[1] && typeof arguments[1].changes === 'number' ? arguments[1].changes : this.changes;
+-          if (alteracoes !== 1) return res.status(404).json({ erro: 'Foto não encontrada neste imóvel' });
+-
+-          console.log(`[MÍDIA] Foto ${imagemId} excluída do imóvel ${imovelId}`);
+-
+-          // Se a foto excluída era a principal, promove a primeira foto restante.
+-          const promoverProxima = async () => {
+-            await removeStoredAsset(imagem.arquivo);
+-            if (!Number(imagem.principal)) return res.json({
+-              mensagem: 'Foto excluída com sucesso',
+-              novaPrincipal: false
+-            });
+-
+-            db.get(
+-              `SELECT id FROM imovel_midias
+-               WHERE imovel_id = ? AND tipo = 'imagem'
+-               ORDER BY ordem ASC, criado_em ASC
+-               LIMIT 1`,
+-              [imovelId],
+-              (nextErr, proxima) => {
+-                if (nextErr) return res.status(500).json({ erro: 'Foto excluída, mas não foi possível definir a nova principal' });
+-                if (!proxima) return res.json({
+-                  mensagem: 'Foto excluída com sucesso. O imóvel ficou sem foto principal.',
+-                  novaPrincipal: false
+-                });
+-
+-                db.run(
+-                  'UPDATE imovel_midias SET principal = 1 WHERE id = ? AND imovel_id = ? AND tipo = ?',
+-                  [proxima.id, imovelId, 'imagem'],
+-                  (promoteErr) => {
+-                    if (promoteErr) return res.status(500).json({ erro: 'Foto excluída, mas não foi possível definir a nova principal' });
+-                    res.json({
+-                      mensagem: 'Foto excluída e nova foto principal definida com sucesso',
+-                      novaPrincipal: true,
+-                      novaPrincipalId: proxima.id
+-                    });
+-                  }
+-                );
+-              }
+-            );
+-          };
+-
+-          promoverProxima();
+-        }
+-      );
+-    }
+-  );
+-});
+-
+ // (Rota duplicada de foto principal removida na V6.2 — a definição válida está acima.)
+ 
+ // ============= ROTAS DE LEADS =============
