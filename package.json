@@ -1,7 +1,7 @@
 {
   "name": "fabiano-reis-imoveis",
-  "version": "7.0.0",
-  "description": "Imobiliária Fabiano Reis — site + painel do corretor (Node/Express, SQLite local, PostgreSQL/Neon + Vercel Blob em produção). V7.0 produção, segurança, SEO e mídia.",
+  "version": "7.0.2",
+  "description": "Imobiliária Fabiano Reis — site + painel do corretor (Node/Express, SQLite local, PostgreSQL/Neon + Vercel Blob em produção). V7.0.2 produção, segurança, SEO e mídia.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

@@ -1,6 +1,4 @@
 const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
-
 const usePostgres = Boolean(process.env.DATABASE_URL);
 const sqlitePath = process.env.SQLITE_DB_PATH || path.join(__dirname, 'database.db');
 
@@ -168,6 +166,10 @@ if (usePostgres) {
   db = new PostgresCompat(process.env.DATABASE_URL);
   db.mode = 'postgres';
 } else {
+  // SQLite é carregado somente no modo local. Em produção com DATABASE_URL,
+  // nenhum binding nativo do sqlite3 é carregado. Isso evita incompatibilidades
+  // de GLIBC entre o binário local e o Linux da Hostinger.
+  const sqlite3 = require('sqlite3').verbose();
   db = new sqlite3.Database(sqlitePath);
   db.mode = 'sqlite';
   db.ready = new Promise((resolve, reject) => db.run('PRAGMA foreign_keys = ON', err => err ? reject(err) : resolve(true)));
