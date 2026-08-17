@@ -1313,6 +1313,11 @@
     .btn-success:hover{background:#bbf7d0;}
     .btn-whatsapp{background:#25d366;color:#fff;border:1px solid #25d366;}
     .btn-whatsapp:hover{background:#1fba58;}
+    .btn-whatsapp-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 14px;border:1px solid #25d366;background:#f0fff6;color:#137a45;border-radius:10px;text-decoration:none;font-weight:700;}
+    .btn-whatsapp-secondary:hover{background:#e0ffec;}
+    .property-whatsapp-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px;}
+    .property-whatsapp-actions a{min-height:44px;}
+    @media(max-width:700px){.property-whatsapp-actions{display:grid;grid-template-columns:1fr;}.property-whatsapp-actions a{width:100%;}}
 
   
     .photo-edit-action{margin-top:10px;display:flex;justify-content:flex-start;}
@@ -1926,6 +1931,21 @@
               <div style="font-size: 16px; color: #1f2937;">Segunda a Sábado, 8-16h</div>
             </div>
           </div>
+        </div>
+
+        <div class="form-section" style="max-width: 800px; margin-top: 24px;">
+          <h3 class="form-section-title">🔐 Alterar senha</h3>
+          <p class="section-subtitle">Por segurança, a nova senha deve ter pelo menos 12 caracteres.</p>
+          <form id="formAlterarSenha" class="auth-form" autocomplete="off">
+            <label for="senhaAtual">Senha atual</label>
+            <input type="password" id="senhaAtual" name="senhaAtual" autocomplete="current-password" minlength="1" required>
+            <label for="novaSenha">Nova senha</label>
+            <input type="password" id="novaSenha" name="novaSenha" autocomplete="new-password" minlength="12" maxlength="200" required>
+            <label for="confirmarSenha">Confirmar nova senha</label>
+            <input type="password" id="confirmarSenha" name="confirmarSenha" autocomplete="new-password" minlength="12" maxlength="200" required>
+            <button type="submit" class="btn btn-primary">🔐 Alterar senha</button>
+            <div id="msgAlterarSenha" class="form-message" role="status" aria-live="polite"></div>
+          </form>
         </div>
       </section>
 

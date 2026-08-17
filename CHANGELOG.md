@@ -106,3 +106,17 @@
 - Upload de fotos processado uma foto por requisição.
 - Exclusão de fotos centralizada em uma única rotina.
 - Migração automática e não destrutiva de public/uploads antigos.
+
+## V7.0.2.1 — Segurança e WhatsApp
+- Adicionado fluxo autenticado para o corretor alterar a própria senha.
+- Nova senha com mínimo de 12 caracteres e hash bcrypt.
+- Sessão JWT renovada após alteração bem-sucedida.
+- Adicionadas mensagens prontas de WhatsApp na página do imóvel: interesse, visita, condições de pagamento e mais fotos.
+- Número de WhatsApp das mensagens pode ser configurado por `WHATSAPP_NUMBER`; fallback mantém o número público já utilizado pelo site.
+
+## V7.0.2.1 — Segurança e WhatsApp
+- Adicionado fluxo autenticado para o corretor alterar a própria senha.
+- Nova senha com mínimo de 12 caracteres e hash bcrypt.
+- Sessão JWT renovada após alteração bem-sucedida.
+- Adicionadas mensagens prontas de WhatsApp na página do imóvel: interesse, visita, condições de pagamento e mais fotos.
+- Número de WhatsApp das mensagens pode ser configurado por `WHATSAPP_NUMBER`; fallback mantém o número público já utilizado pelo site.

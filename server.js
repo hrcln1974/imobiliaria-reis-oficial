@@ -361,6 +361,21 @@ function escapeAttr(value) { return escapeHtml(value).replace(/`/g, '&#96;'); }
 function escapeXml(value) {
   return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 }
+const WHATSAPP_NUMBER = String(process.env.WHATSAPP_NUMBER || '5521991822134').replace(/\D/g, '');
+function whatsappUrl(message) { return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`; }
+function whatsappMessages(imovel) {
+  const titulo = String(imovel?.titulo || 'este imóvel');
+  const local = [imovel?.bairro, imovel?.cidade].filter(Boolean).join(' - ');
+  const preco = Number(imovel?.preco || 0) > 0 ? Number(imovel.preco).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '';
+  const link = propertyCanonical(imovel?.id);
+  const contexto = [titulo, local, preco].filter(Boolean).join(' | ');
+  return {
+    interesse: `Olá, Fabiano! Tenho interesse no imóvel ${contexto}. Gostaria de receber mais informações.\n\n${link}`,
+    visita: `Olá, Fabiano! Gostaria de agendar uma visita ao imóvel ${contexto}.\n\n${link}`,
+    pagamento: `Olá, Fabiano! Gostaria de saber as condições de pagamento do imóvel ${contexto}.\n\n${link}`,
+    fotos: `Olá, Fabiano! Gostaria de receber mais fotos e detalhes do imóvel ${contexto}.\n\n${link}`
+  };
+}
 function propertyCanonical(id) { return `${PUBLIC_SITE_URL}/imovel/${encodeURIComponent(id)}`; }
 
 app.get('/sitemap.xml', (req, res) => {
@@ -393,7 +408,7 @@ app.get('/imovel/:id', (req, res) => {
         'offers':{'@type':'Offer','price':Number(imovel.preco || 0),'priceCurrency':'BRL'},
         'address':{'@type':'PostalAddress','streetAddress':imovel.endereco || '', 'addressLocality':imovel.cidade || '', 'addressRegion':'RJ','addressCountry':'BR'}
       });
-      const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><link rel="canonical" href="${propertyCanonical(id)}"><meta property="og:type" content="product"><meta property="og:url" content="${propertyCanonical(id)}"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:image" content="${escapeHtml(imageUrl)}"><link rel="icon" href="/favicon.ico"><link rel="stylesheet" href="/style.css"><style>main{max-width:1100px;margin:40px auto;padding:0 20px}.property-hero{display:grid;grid-template-columns:1.4fr 1fr;gap:28px}.property-hero img{width:100%;max-height:560px;object-fit:cover;border-radius:18px}.property-meta{background:#fff;border-radius:18px;padding:28px;box-shadow:0 10px 30px rgba(0,0,0,.08)}.property-meta h1{margin-top:0}.property-price{font-size:2rem;font-weight:800}.property-features{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}.property-feature{padding:8px 12px;background:#f1f5f9;border-radius:999px}.property-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:24px}.property-gallery img{width:100%;height:180px;object-fit:cover;border-radius:12px}@media(max-width:800px){.property-hero{grid-template-columns:1fr}}</style></head><body><main><a href="/">← Voltar para Fabiano Reis Imóveis</a><section class="property-hero"><div><img src="${escapeAttr(imageUrl)}" alt="${escapeAttr(imovel.titulo)}"></div><div class="property-meta"><p>${escapeHtml(imovel.operacao || '')}</p><h1>${escapeHtml(imovel.titulo)}</h1><div class="property-price">${escapeHtml(preco)}</div><p>📍 ${escapeHtml(imovel.bairro)}, ${escapeHtml(imovel.cidade)}</p><div class="property-features">${imovel.quartos ? `<span class="property-feature">🛏️ ${imovel.quartos} quartos</span>`:''}${imovel.banheiros ? `<span class="property-feature">🚿 ${imovel.banheiros} banheiros</span>`:''}${imovel.area ? `<span class="property-feature">📐 ${imovel.area} m²</span>`:''}${imovel.garagem ? `<span class="property-feature">🚗 ${imovel.garagem} vagas</span>`:''}</div><p>${escapeHtml(imovel.descricao || 'Consulte a imobiliária para mais informações.')}</p><a class="btn-primary" href="https://wa.me/5521991822134?text=${encodeURIComponent('Tenho interesse no imóvel: '+imovel.titulo)}" target="_blank" rel="noopener noreferrer">Falar no WhatsApp</a></div></section><section><h2>Fotos e vídeos</h2><div class="property-gallery">${media.filter(m=>m.tipo==='imagem' && (m.arquivo||m.url_externa)).map(m=>`<img loading="lazy" src="${escapeAttr(m.arquivo||m.url_externa)}" alt="${escapeAttr(imovel.titulo)}">`).join('')}</div></section></main><script type="application/ld+json">${jsonLd}</script></body></html>`;
+      const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><link rel="canonical" href="${propertyCanonical(id)}"><meta property="og:type" content="product"><meta property="og:url" content="${propertyCanonical(id)}"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:image" content="${escapeHtml(imageUrl)}"><link rel="icon" href="/favicon.ico"><link rel="stylesheet" href="/style.css"><style>main{max-width:1100px;margin:40px auto;padding:0 20px}.property-hero{display:grid;grid-template-columns:1.4fr 1fr;gap:28px}.property-hero img{width:100%;max-height:560px;object-fit:cover;border-radius:18px}.property-meta{background:#fff;border-radius:18px;padding:28px;box-shadow:0 10px 30px rgba(0,0,0,.08)}.property-meta h1{margin-top:0}.property-price{font-size:2rem;font-weight:800}.property-features{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}.property-feature{padding:8px 12px;background:#f1f5f9;border-radius:999px}.property-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:24px}.property-gallery img{width:100%;height:180px;object-fit:cover;border-radius:12px}@media(max-width:800px){.property-hero{grid-template-columns:1fr}}</style></head><body><main><a href="/">← Voltar para Fabiano Reis Imóveis</a><section class="property-hero"><div><img src="${escapeAttr(imageUrl)}" alt="${escapeAttr(imovel.titulo)}"></div><div class="property-meta"><p>${escapeHtml(imovel.operacao || '')}</p><h1>${escapeHtml(imovel.titulo)}</h1><div class="property-price">${escapeHtml(preco)}</div><p>📍 ${escapeHtml(imovel.bairro)}, ${escapeHtml(imovel.cidade)}</p><div class="property-features">${imovel.quartos ? `<span class="property-feature">🛏️ ${imovel.quartos} quartos</span>`:''}${imovel.banheiros ? `<span class="property-feature">🚿 ${imovel.banheiros} banheiros</span>`:''}${imovel.area ? `<span class="property-feature">📐 ${imovel.area} m²</span>`:''}${imovel.garagem ? `<span class="property-feature">🚗 ${imovel.garagem} vagas</span>`:''}</div><p>${escapeHtml(imovel.descricao || 'Consulte a imobiliária para mais informações.')}</p><div class="property-whatsapp-actions"><a class="btn-primary" href="${whatsappUrl(whatsappMessages(imovel).interesse)}" target="_blank" rel="noopener noreferrer">📲 Tenho interesse</a><a class="btn-whatsapp-secondary" href="${whatsappUrl(whatsappMessages(imovel).visita)}" target="_blank" rel="noopener noreferrer">📅 Agendar visita</a><a class="btn-whatsapp-secondary" href="${whatsappUrl(whatsappMessages(imovel).pagamento)}" target="_blank" rel="noopener noreferrer">💰 Condições de pagamento</a><a class="btn-whatsapp-secondary" href="${whatsappUrl(whatsappMessages(imovel).fotos)}" target="_blank" rel="noopener noreferrer">📸 Mais fotos</a></div></div></section><section><h2>Fotos e vídeos</h2><div class="property-gallery">${media.filter(m=>m.tipo==='imagem' && (m.arquivo||m.url_externa)).map(m=>`<img loading="lazy" src="${escapeAttr(m.arquivo||m.url_externa)}" alt="${escapeAttr(imovel.titulo)}">`).join('')}</div></section></main><script type="application/ld+json">${jsonLd}</script></body></html>`;
       res.type('html').set('Cache-Control','public, max-age=300').send(html);
     });
   });
@@ -712,6 +727,45 @@ app.post('/api/imoveis/:id/excluir-definitivo', verificarCorretor, async (req, r
     console.error('[IMÓVEL] Exclusão definitiva falhou:', err);
     res.status(err.statusCode || 500).json({ erro: err.message || 'Erro ao excluir imóvel' });
   }
+});
+
+app.post('/api/auth/change-password', verificarCorretor, (req, res) => {
+  const senhaAtual = String(req.body?.senhaAtual || '');
+  const novaSenha = String(req.body?.novaSenha || '');
+  const confirmarSenha = String(req.body?.confirmarSenha || '');
+
+  if (!senhaAtual || !novaSenha || !confirmarSenha) {
+    return res.status(400).json({ erro: 'Preencha todos os campos de senha.' });
+  }
+  if (novaSenha !== confirmarSenha) {
+    return res.status(400).json({ erro: 'A nova senha e a confirmação não coincidem.' });
+  }
+  if (novaSenha.length < 12 || novaSenha.length > 200) {
+    return res.status(400).json({ erro: 'A nova senha deve ter entre 12 e 200 caracteres.' });
+  }
+  if (novaSenha === senhaAtual) {
+    return res.status(400).json({ erro: 'A nova senha deve ser diferente da senha atual.' });
+  }
+
+  db.get('SELECT id, email, nome, tipo, senha FROM usuarios WHERE id = ? AND ativo = 1', [req.usuario.id], (err, user) => {
+    if (err) return res.status(500).json({ erro: 'Erro do servidor.' });
+    if (!user || user.tipo !== 'corretor' || !bcrypt.compareSync(senhaAtual, user.senha)) {
+      return res.status(401).json({ erro: 'Senha atual incorreta.' });
+    }
+
+    const senhaHash = bcrypt.hashSync(novaSenha, 12);
+    db.run('UPDATE usuarios SET senha = ? WHERE id = ? AND ativo = 1', [senhaHash, user.id], function(updateErr) {
+      if (updateErr) return res.status(500).json({ erro: 'Não foi possível alterar a senha.' });
+
+      const token = jwt.sign(
+        { id: user.id, email: user.email, tipo: user.tipo },
+        SECRET,
+        { expiresIn: '24h' }
+      );
+      setAuthCookie(res, token);
+      return res.json({ mensagem: 'Senha alterada com sucesso.' });
+    });
+  });
 });
 
 app.post('/api/logout', (req, res) => {

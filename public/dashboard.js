@@ -593,10 +593,29 @@ async function deletarVideo(imovelId,videoId){
   }catch(e){if(e.message!=='UNAUTHORIZED')alert(e.message);}
 }
 
+async function alterarSenha(event){
+  event?.preventDefault();
+  const form=document.getElementById('formAlterarSenha');
+  const msg=document.getElementById('msgAlterarSenha');
+  if(!form||!msg)return;
+  const senhaAtual=document.getElementById('senhaAtual')?.value||'';
+  const novaSenha=document.getElementById('novaSenha')?.value||'';
+  const confirmarSenha=document.getElementById('confirmarSenha')?.value||'';
+  msg.textContent='';msg.style.color='';
+  if(novaSenha.length<12){msg.style.color='#b91c1c';msg.textContent='❌ A nova senha deve ter pelo menos 12 caracteres.';return;}
+  if(novaSenha!==confirmarSenha){msg.style.color='#b91c1c';msg.textContent='❌ A confirmação da nova senha não coincide.';return;}
+  try{
+    const res=await apiFetch(`${API_BASE}/auth/change-password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({senhaAtual,novaSenha,confirmarSenha})});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok){msg.style.color='#b91c1c';msg.textContent='❌ '+(data.erro||'Não foi possível alterar a senha.');return;}
+    form.reset();msg.style.color='#15803d';msg.textContent='✅ Senha alterada com sucesso. Você já pode continuar usando o painel.';
+  }catch(err){if(err.message!=='UNAUTHORIZED'){msg.style.color='#b91c1c';msg.textContent='❌ Erro ao alterar a senha. Tente novamente.';}}
+}
+
 async function logout(){try{await fetch(`${API_BASE}/logout`,{method:'POST',credentials:'same-origin'});}finally{window.location.href='/?login=1';}}
 
 document.getElementById('modalImagens')?.addEventListener('click',e=>{if(e.target.id==='modalImagens')fecharModalImagens();});
 document.getElementById('modalLead')?.addEventListener('click',e=>{if(e.target.id==='modalLead')fecharModalLead();});
 document.getElementById('fotosImovel')?.addEventListener('change',function(){const grid=document.getElementById('previewFotos');if(!grid)return;Array.from(this.files||[]).forEach(file=>{if(!file.type.startsWith('image/'))return;const reader=new FileReader();reader.onload=e=>{const item=document.createElement('div');item.className='photo-preview';item.innerHTML=`<img src="${e.target.result}" alt="Pré-visualização"><span>${escapeHtml(file.name)}</span>`;grid.appendChild(item);};reader.readAsDataURL(file);});});
 
-document.addEventListener('DOMContentLoaded',async()=>{atualizarData();await carregarConfiguracaoMidia();const ok=await validarSessaoInicial();if(ok)carregarDashboard();});
+document.addEventListener('DOMContentLoaded',async()=>{atualizarData();await carregarConfiguracaoMidia();document.getElementById('formAlterarSenha')?.addEventListener('submit',alterarSenha);const ok=await validarSessaoInicial();if(ok)carregarDashboard();});

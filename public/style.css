@@ -1229,3 +1229,10 @@ img, video, iframe { max-width: 100%; }
 .imovel-feature { display:inline-flex; align-items:center; padding:6px 9px; border:1px solid #dbe4f0; border-radius:999px; background:#f8fafc; color:#334155; font-size:12px; line-height:1.2; }
 .imovel-feature-more { background:#eef3ff; color:#2457df; font-weight:700; }
 .detalhes-container .imovel-caracteristicas-avancadas { margin:14px 0 4px; }
+
+/* V7.0.2.1 — ações WhatsApp contextualizadas na página do imóvel */
+.property-whatsapp-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+.property-whatsapp-actions a{min-height:44px}
+.btn-whatsapp-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 14px;border:1px solid #25d366;background:#f0fff6;color:#137a45;border-radius:10px;text-decoration:none;font-weight:700}
+.btn-whatsapp-secondary:hover{background:#e0ffec}
+@media(max-width:700px){.property-whatsapp-actions{display:grid;grid-template-columns:1fr}.property-whatsapp-actions a{width:100%}}
