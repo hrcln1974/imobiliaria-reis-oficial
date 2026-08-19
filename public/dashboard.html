@@ -6,6 +6,8 @@
   <title>Painel do Corretor — Fabiano Reis Imóveis</title>
   <meta name="robots" content="noindex, nofollow">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <!-- V7.1 Premium: foco visível, estados de carregamento e microinterações -->
+  <link rel="stylesheet" href="/premium.css">
   <style>
     * {
       margin: 0;
@@ -1118,7 +1120,19 @@
       gap:18px !important;
     }
     .form-checkboxes{ grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:14px !important; }
-    .checkbox-item{ border:1px solid #dbe3ee !important; border-radius:10px !important; }
+    .checkbox-item{ border:1px solid #dbe3ee !important; border-radius:10px !important; color:#1e293b !important; }
+    .checkbox-item span{ color:#1e293b !important; opacity:1 !important; -webkit-text-fill-color:#1e293b !important; }
+    .checkbox-item input[type="checkbox"]{ color-scheme:light; opacity:1 !important; }
+    .caracteristica-item{ color:#334155 !important; opacity:1 !important; }
+    .caracteristica-item span{ color:#334155 !important; opacity:1 !important; -webkit-text-fill-color:#334155 !important; font-weight:600 !important; }
+    .caracteristica-item input[type="checkbox"]{ opacity:1 !important; accent-color:#2563eb !important; }
+    .caracteristica-item.is-selected span{ color:#1e40af !important; font-weight:700 !important; }
+    .form-group input,.form-group select,.form-group textarea{ color:#1e293b !important; -webkit-text-fill-color:#1e293b !important; opacity:1 !important; }
+    .form-group input::placeholder,.form-group textarea::placeholder{ color:#64748b !important; opacity:1 !important; -webkit-text-fill-color:#64748b !important; }
+    html[data-theme="dark"] .checkbox-item span{ color:#e5e7eb !important; -webkit-text-fill-color:#e5e7eb !important; }
+    html[data-theme="dark"] .caracteristica-item span{ color:#e5e7eb !important; -webkit-text-fill-color:#e5e7eb !important; }
+    html[data-theme="dark"] .caracteristica-item.is-selected span{ color:#bfdbfe !important; -webkit-text-fill-color:#bfdbfe !important; }
+    html[data-theme="dark"] .form-group input,html[data-theme="dark"] .form-group select,html[data-theme="dark"] .form-group textarea{ color:#e5e7eb !important; -webkit-text-fill-color:#e5e7eb !important; }
 
     .form-actions{
       position:sticky;
@@ -1313,11 +1327,6 @@
     .btn-success:hover{background:#bbf7d0;}
     .btn-whatsapp{background:#25d366;color:#fff;border:1px solid #25d366;}
     .btn-whatsapp:hover{background:#1fba58;}
-    .btn-whatsapp-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 14px;border:1px solid #25d366;background:#f0fff6;color:#137a45;border-radius:10px;text-decoration:none;font-weight:700;}
-    .btn-whatsapp-secondary:hover{background:#e0ffec;}
-    .property-whatsapp-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px;}
-    .property-whatsapp-actions a{min-height:44px;}
-    @media(max-width:700px){.property-whatsapp-actions{display:grid;grid-template-columns:1fr;}.property-whatsapp-actions a{width:100%;}}
 
   
     .photo-edit-action{margin-top:10px;display:flex;justify-content:flex-start;}
@@ -1358,36 +1367,559 @@
       width: 100%;
     }
 
-    .caracteristicas-avancadas {
-      margin-top: 22px;
-      padding: 18px;
-      border: 1px solid #dbe4f0;
-      border-radius: 16px;
-      background: #f8fafc;
+#theme-toggle{position:fixed;right:20px;bottom:20px;width:48px;height:48px;border:0;border-radius:50%;background:#0f172a;color:#fff;box-shadow:0 10px 25px rgba(0,0,0,.2);z-index:3000;cursor:pointer;font-size:20px}
+html[data-theme="dark"] body{background:#0b1120;color:#e5e7eb}
+html[data-theme="dark"] .main-content,html[data-theme="dark"] .card,html[data-theme="dark"] .section-card,html[data-theme="dark"] .modal-content{background:#111827;color:#e5e7eb}
+html[data-theme="dark"] table{color:#e5e7eb}html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="dark"] textarea{background:#0f172a;color:#e5e7eb;border-color:#334155}
+html[data-theme="dark"] .table-container,html[data-theme="dark"] .stat-card{background:#111827;border-color:#334155}
+
+.conversion-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:20px}.conversion-stat{background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:22px;box-shadow:0 8px 24px rgba(15,23,42,.06)}.conversion-stat span{display:block;font-size:13px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em}.conversion-stat strong{display:block;font-size:34px;line-height:1.1;margin:8px 0;color:#0f172a}.conversion-stat small{color:#94a3b8}.conversion-stat-total{background:linear-gradient(135deg,#0f2f3d,#163f50);border-color:#163f50}.conversion-stat-total span,.conversion-stat-total small{color:#cbd5e1}.conversion-stat-total strong{color:#fff}@media(max-width:1000px){.conversion-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.conversion-stat-grid{grid-template-columns:1fr}}
+
+    .caracteristicas-toolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin:12px 0 18px;flex-wrap:wrap}.caracteristicas-toolbar input{flex:1;min-width:240px;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--text)}.caracteristicas-count{font-size:13px;font-weight:700;color:var(--text-light);white-space:nowrap}.caracteristicas-categorias{display:grid;gap:18px}.caracteristica-categoria{border:1px solid var(--light-gray);border-radius:14px;background:#fff;padding:16px}.caracteristica-categoria h4{margin:0 0 12px;color:var(--dark);font-size:15px}.caracteristica-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}.caracteristica-item{display:flex;align-items:center;gap:9px;padding:9px 10px;border:1px solid #e5e7eb;border-radius:10px;background:#f8fafc;cursor:pointer;transition:.2s}.caracteristica-item:hover{border-color:#93c5fd;background:#eff6ff}.caracteristica-item input{width:17px;height:17px;accent-color:#1e40af}.caracteristica-item.is-hidden{display:none}.caracteristica-item.is-selected{border-color:#2563eb;background:#eff6ff}.fr-caracteristicas-publicas{display:grid;gap:18px}.fr-caracteristicas-publicas .fr-carac-grupo{border:1px solid rgba(148,163,184,.25);border-radius:16px;padding:16px;background:rgba(248,250,252,.65)}.fr-carac-grupo h3{margin:0 0 12px;font-size:1rem}.fr-carac-tags{display:flex;flex-wrap:wrap;gap:8px}.fr-carac-tag{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;background:#f1f5f9;color:#334155;font-size:.9rem;border:1px solid #e2e8f0}
+
+
+    /* =========================================================
+       V12.1 — CORREÇÃO DE LEGIBILIDADE DOS CAMPOS E CARACTERÍSTICAS
+       Garante contraste real nos modos claro e escuro.
+       ========================================================= */
+    .form-checkboxes .checkbox-item,
+    #painelCaracteristicas .caracteristica-item {
+      color: #1f2937 !important;
+      opacity: 1 !important;
+      -webkit-text-fill-color: #1f2937 !important;
+      background: #f8fafc !important;
     }
-    .caracteristicas-avancadas-header {
-      display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:16px;
+    .form-checkboxes .checkbox-item span,
+    #painelCaracteristicas .caracteristica-item span {
+      color: #1f2937 !important;
+      opacity: 1 !important;
+      -webkit-text-fill-color: #1f2937 !important;
+      font-weight: 600 !important;
+      visibility: visible !important;
     }
-    .caracteristicas-avancadas-header h4 { margin:0 0 5px; font-size:18px; color:#102a56; }
-    .caracteristicas-avancadas-header p { margin:0; color:#64748b; font-size:13px; }
-    .caracteristicas-contador {
-      flex:0 0 auto; padding:7px 11px; border-radius:999px; background:#e8eefc; color:#214fc4; font-weight:700; font-size:12px;
+    .form-checkboxes .checkbox-item input[type="checkbox"],
+    #painelCaracteristicas .caracteristica-item input[type="checkbox"] {
+      opacity: 1 !important;
+      visibility: visible !important;
+      accent-color: #2563eb !important;
+      filter: none !important;
     }
-    .caracteristicas-grupos { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
-    .caracteristica-grupo { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:15px; }
-    .caracteristica-grupo h5 { margin:0 0 12px; color:#152b52; font-size:14px; }
-    .caracteristica-opcoes { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
-    .caracteristica-opcoes label { display:flex; align-items:center; gap:8px; min-height:34px; padding:7px 8px; border-radius:9px; cursor:pointer; font-size:13px; color:#334155; transition:.15s ease; }
-    .caracteristica-opcoes label:hover { background:#f1f5f9; }
-    .caracteristica-opcoes input { width:16px; height:16px; accent-color:#2457df; flex:0 0 auto; }
-    @media (max-width: 900px) {
-      .caracteristicas-grupos { grid-template-columns:1fr; }
+    .form-checkboxes .checkbox-item:hover,
+    #painelCaracteristicas .caracteristica-item:hover {
+      background: #eff6ff !important;
+      border-color: #93c5fd !important;
     }
-    @media (max-width: 560px) {
-      .caracteristicas-avancadas-header { flex-direction:column; }
-      .caracteristica-opcoes { grid-template-columns:1fr; }
+    #painelCaracteristicas .caracteristica-item.is-selected,
+    #painelCaracteristicas .caracteristica-item:has(input:checked) {
+      background: #eff6ff !important;
+      border-color: #2563eb !important;
     }
-</style>
+    #painelCaracteristicas .caracteristica-item.is-selected span,
+    #painelCaracteristicas .caracteristica-item:has(input:checked) span {
+      color: #1d4ed8 !important;
+      -webkit-text-fill-color: #1d4ed8 !important;
+      font-weight: 700 !important;
+    }
+    #painelCaracteristicas .caracteristica-categoria {
+      background: #ffffff !important;
+    }
+    #painelCaracteristicas .caracteristica-categoria h4 {
+      color: #0f172a !important;
+      -webkit-text-fill-color: #0f172a !important;
+      font-weight: 800 !important;
+    }
+    .caracteristicas-toolbar input {
+      color: #1f2937 !important;
+      -webkit-text-fill-color: #1f2937 !important;
+      background: #ffffff !important;
+      opacity: 1 !important;
+    }
+    .caracteristicas-count { color: #475569 !important; opacity: 1 !important; }
+
+    /* Tema escuro: não deixar texto claro sobre cartões brancos. */
+    html[data-theme="dark"] .form-section,
+    html[data-theme="dark"] #painelCaracteristicas .caracteristica-categoria {
+      background: #111827 !important;
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark"] .form-checkboxes .checkbox-item,
+    html[data-theme="dark"] #painelCaracteristicas .caracteristica-item {
+      background: #1e293b !important;
+      border-color: #475569 !important;
+      color: #f8fafc !important;
+      -webkit-text-fill-color: #f8fafc !important;
+    }
+    html[data-theme="dark"] .form-checkboxes .checkbox-item span,
+    html[data-theme="dark"] #painelCaracteristicas .caracteristica-item span {
+      color: #f8fafc !important;
+      -webkit-text-fill-color: #f8fafc !important;
+    }
+    html[data-theme="dark"] #painelCaracteristicas .caracteristica-item:hover,
+    html[data-theme="dark"] #painelCaracteristicas .caracteristica-item:has(input:checked) {
+      background: #172554 !important;
+      border-color: #60a5fa !important;
+    }
+    html[data-theme="dark"] #painelCaracteristicas .caracteristica-item.is-selected span,
+    html[data-theme="dark"] #painelCaracteristicas .caracteristica-item:has(input:checked) span {
+      color: #bfdbfe !important;
+      -webkit-text-fill-color: #bfdbfe !important;
+    }
+    html[data-theme="dark"] #painelCaracteristicas .caracteristica-categoria h4 {
+      color: #f8fafc !important;
+      -webkit-text-fill-color: #f8fafc !important;
+    }
+    html[data-theme="dark"] .caracteristicas-toolbar input {
+      background: #0f172a !important;
+      border-color: #475569 !important;
+      color: #f8fafc !important;
+      -webkit-text-fill-color: #f8fafc !important;
+    }
+    html[data-theme="dark"] .caracteristicas-count { color: #cbd5e1 !important; }
+
+    /* Melhora a leitura dos rótulos principais do formulário. */
+    .form-group label,
+    .form-section-title,
+    .section-subtitle {
+      opacity: 1 !important;
+    }
+    .form-group label { color: #334155 !important; -webkit-text-fill-color: #334155 !important; font-weight: 700 !important; }
+    .section-subtitle { color: #64748b !important; -webkit-text-fill-color: #64748b !important; }
+    html[data-theme="dark"] .form-group label { color: #e2e8f0 !important; -webkit-text-fill-color: #e2e8f0 !important; }
+    html[data-theme="dark"] .section-subtitle { color: #cbd5e1 !important; -webkit-text-fill-color: #cbd5e1 !important; }
+
+    /* =========================================================
+       V12.2 — LEITURA E PREENCHIMENTO DO FORMULÁRIO
+       Contraste forte em rótulos, valores digitados, placeholders
+       e opções nativas de select. Evita textos "apagados".
+       ========================================================= */
+    #formNovoImovel,
+    #formNovoImovel * { opacity: 1 !important; }
+
+    #formNovoImovel .form-section,
+    #formNovoImovel .form-group,
+    #formNovoImovel .form-row,
+    #formNovoImovel .form-grid { opacity: 1 !important; }
+
+    #formNovoImovel .form-group label,
+    #formNovoImovel .form-section-title,
+    #formNovoImovel .section-subtitle,
+    #formNovoImovel .caracteristicas-count,
+    #formNovoImovel .checkbox-item span {
+      opacity: 1 !important;
+      visibility: visible !important;
+      text-shadow: none !important;
+    }
+
+    /* Campos brancos: texto digitado sempre escuro e nítido. */
+    #formNovoImovel input:not([type="checkbox"]):not([type="file"]),
+    #formNovoImovel textarea,
+    #formNovoImovel select,
+    #formNovoImovel .caracteristicas-toolbar input {
+      background-color: #ffffff !important;
+      color: #111827 !important;
+      -webkit-text-fill-color: #111827 !important;
+      opacity: 1 !important;
+      caret-color: #111827 !important;
+      font-weight: 500 !important;
+      text-shadow: none !important;
+      color-scheme: light !important;
+    }
+
+    #formNovoImovel input:not([type="checkbox"]):not([type="file"])::placeholder,
+    #formNovoImovel textarea::placeholder,
+    #formNovoImovel .caracteristicas-toolbar input::placeholder {
+      color: #64748b !important;
+      -webkit-text-fill-color: #64748b !important;
+      opacity: 1 !important;
+      font-weight: 500 !important;
+    }
+
+    /* Select fechado e lista nativa. */
+    #formNovoImovel select,
+    #formNovoImovel select:focus,
+    #formNovoImovel select option,
+    #formNovoImovel select option:checked {
+      color: #111827 !important;
+      -webkit-text-fill-color: #111827 !important;
+      opacity: 1 !important;
+      background-color: #ffffff !important;
+      font-weight: 500 !important;
+    }
+    #formNovoImovel select option[value=""] { color: #64748b !important; }
+
+    /* Quando houver foco, o valor digitado continua forte. */
+    #formNovoImovel input:focus,
+    #formNovoImovel textarea:focus,
+    #formNovoImovel select:focus {
+      color: #0f172a !important;
+      -webkit-text-fill-color: #0f172a !important;
+      background-color: #ffffff !important;
+      border-color: #2563eb !important;
+      opacity: 1 !important;
+    }
+
+    /* Autofill do Chrome não pode deixar o texto apagado. */
+    #formNovoImovel input:-webkit-autofill,
+    #formNovoImovel input:-webkit-autofill:hover,
+    #formNovoImovel input:-webkit-autofill:focus,
+    #formNovoImovel textarea:-webkit-autofill,
+    #formNovoImovel select:-webkit-autofill {
+      -webkit-text-fill-color: #111827 !important;
+      color: #111827 !important;
+      box-shadow: 0 0 0 1000px #ffffff inset !important;
+      opacity: 1 !important;
+    }
+
+    /* Caixas de seleção do formulário. */
+    #formNovoImovel .checkbox-item,
+    #formNovoImovel #painelCaracteristicas .caracteristica-item {
+      opacity: 1 !important;
+      filter: none !important;
+    }
+    #formNovoImovel .checkbox-item span,
+    #formNovoImovel #painelCaracteristicas .caracteristica-item span {
+      color: #1f2937 !important;
+      -webkit-text-fill-color: #1f2937 !important;
+      opacity: 1 !important;
+      font-weight: 650 !important;
+    }
+    #formNovoImovel #painelCaracteristicas .caracteristica-item:has(input:checked) span,
+    #formNovoImovel #painelCaracteristicas .caracteristica-item.is-selected span {
+      color: #1d4ed8 !important;
+      -webkit-text-fill-color: #1d4ed8 !important;
+      font-weight: 800 !important;
+    }
+    #formNovoImovel input[type="checkbox"] {
+      opacity: 1 !important;
+      filter: none !important;
+      accent-color: #2563eb !important;
+    }
+
+    /* Botões e mensagens não herdam transparência de componentes antigos. */
+    #formNovoImovel .btn,
+    #formNovoImovel .form-message { opacity: 1 !important; }
+
+    /* Seções de características também permanecem legíveis. */
+    #painelCaracteristicas .caracteristica-categoria h4,
+    #painelCaracteristicas .caracteristica-item,
+    #painelCaracteristicas .caracteristica-item span,
+    #painelCaracteristicas .caracteristicas-count {
+      opacity: 1 !important;
+      visibility: visible !important;
+    }
+
+    html[data-theme="dark"] #formNovoImovel input:not([type="checkbox"]):not([type="file"]),
+    html[data-theme="dark"] #formNovoImovel textarea,
+    html[data-theme="dark"] #formNovoImovel select,
+    html[data-theme="dark"] #formNovoImovel .caracteristicas-toolbar input {
+      background-color: #ffffff !important;
+      color: #111827 !important;
+      -webkit-text-fill-color: #111827 !important;
+      color-scheme: light !important;
+    }
+    html[data-theme="dark"] #formNovoImovel input:not([type="checkbox"]):not([type="file"])::placeholder,
+    html[data-theme="dark"] #formNovoImovel textarea::placeholder,
+    html[data-theme="dark"] #formNovoImovel .caracteristicas-toolbar input::placeholder {
+      color: #64748b !important;
+      -webkit-text-fill-color: #64748b !important;
+      opacity: 1 !important;
+    }
+    html[data-theme="dark"] #formNovoImovel select option,
+    html[data-theme="dark"] #formNovoImovel select option:checked {
+      background: #ffffff !important;
+      color: #111827 !important;
+      -webkit-text-fill-color: #111827 !important;
+    }
+
+
+    /* =========================================================
+       V12.3 — CONTRASTE FINAL DO PAINEL DO CORRETOR
+       Objetivo: leitura clara em qualquer computador, inclusive
+       quando o sistema operacional estiver em modo escuro.
+       Não altera lógica, API, banco ou cadastro.
+       ========================================================= */
+
+    /* Base do formulário: nunca usar texto de baixo contraste. */
+    #formNovoImovel .form-section {
+      opacity: 1 !important;
+    }
+
+    #formNovoImovel .form-group label,
+    #formNovoImovel .form-section-title {
+      color: #0f172a !important;
+      -webkit-text-fill-color: #0f172a !important;
+      opacity: 1 !important;
+      font-weight: 800 !important;
+    }
+
+    #formNovoImovel .section-subtitle {
+      color: #475569 !important;
+      -webkit-text-fill-color: #475569 !important;
+      opacity: 1 !important;
+      font-weight: 500 !important;
+    }
+
+    /* Todos os campos de digitação/select: valor forte e nítido. */
+    #formNovoImovel input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+    #formNovoImovel textarea,
+    #formNovoImovel select,
+    #formNovoImovel .caracteristicas-toolbar input {
+      background: #ffffff !important;
+      color: #111827 !important;
+      -webkit-text-fill-color: #111827 !important;
+      opacity: 1 !important;
+      visibility: visible !important;
+      font-weight: 600 !important;
+      text-shadow: none !important;
+      color-scheme: light !important;
+      caret-color: #111827 !important;
+    }
+
+    #formNovoImovel input:not([type="checkbox"]):not([type="radio"]):not([type="file"])::placeholder,
+    #formNovoImovel textarea::placeholder,
+    #formNovoImovel .caracteristicas-toolbar input::placeholder {
+      color: #64748b !important;
+      -webkit-text-fill-color: #64748b !important;
+      opacity: 1 !important;
+      font-weight: 500 !important;
+    }
+
+    #formNovoImovel select option,
+    #formNovoImovel select option:checked {
+      background: #ffffff !important;
+      color: #111827 !important;
+      -webkit-text-fill-color: #111827 !important;
+      opacity: 1 !important;
+      font-weight: 600 !important;
+    }
+
+    #formNovoImovel input:focus,
+    #formNovoImovel textarea:focus,
+    #formNovoImovel select:focus,
+    #formNovoImovel .caracteristicas-toolbar input:focus {
+      background: #ffffff !important;
+      color: #0f172a !important;
+      -webkit-text-fill-color: #0f172a !important;
+      border-color: #2563eb !important;
+      box-shadow: 0 0 0 3px rgba(37,99,235,.16) !important;
+      opacity: 1 !important;
+    }
+
+    /* Checkboxes simples: texto sempre escuro sobre cartão claro. */
+    #formNovoImovel .checkbox-item {
+      background: #f8fafc !important;
+      border: 1px solid #cbd5e1 !important;
+      color: #1f2937 !important;
+      opacity: 1 !important;
+    }
+
+    #formNovoImovel .checkbox-item span {
+      color: #1f2937 !important;
+      -webkit-text-fill-color: #1f2937 !important;
+      opacity: 1 !important;
+      font-weight: 700 !important;
+    }
+
+    /* Características: cada opção precisa ser claramente legível. */
+    #formNovoImovel #painelCaracteristicas .caracteristica-categoria {
+      background: #ffffff !important;
+      border: 1px solid #cbd5e1 !important;
+      opacity: 1 !important;
+    }
+
+    #formNovoImovel #painelCaracteristicas .caracteristica-categoria h4 {
+      color: #0f172a !important;
+      -webkit-text-fill-color: #0f172a !important;
+      opacity: 1 !important;
+      font-weight: 800 !important;
+    }
+
+    #formNovoImovel #painelCaracteristicas .caracteristica-item {
+      background: #f8fafc !important;
+      border: 1px solid #cbd5e1 !important;
+      color: #1f2937 !important;
+      -webkit-text-fill-color: #1f2937 !important;
+      opacity: 1 !important;
+      visibility: visible !important;
+    }
+
+    #formNovoImovel #painelCaracteristicas .caracteristica-item span {
+      color: #1f2937 !important;
+      -webkit-text-fill-color: #1f2937 !important;
+      opacity: 1 !important;
+      visibility: visible !important;
+      font-weight: 700 !important;
+    }
+
+    #formNovoImovel #painelCaracteristicas .caracteristica-item:hover {
+      background: #eff6ff !important;
+      border-color: #60a5fa !important;
+    }
+
+    #formNovoImovel #painelCaracteristicas .caracteristica-item.is-selected,
+    #formNovoImovel #painelCaracteristicas .caracteristica-item:has(input:checked) {
+      background: #dbeafe !important;
+      border-color: #2563eb !important;
+    }
+
+    #formNovoImovel #painelCaracteristicas .caracteristica-item.is-selected span,
+    #formNovoImovel #painelCaracteristicas .caracteristica-item:has(input:checked) span {
+      color: #1e40af !important;
+      -webkit-text-fill-color: #1e40af !important;
+      font-weight: 800 !important;
+    }
+
+    #formNovoImovel #painelCaracteristicas input[type="checkbox"],
+    #formNovoImovel .checkbox-item input[type="checkbox"] {
+      opacity: 1 !important;
+      visibility: visible !important;
+      filter: none !important;
+      accent-color: #2563eb !important;
+    }
+
+    #formNovoImovel .caracteristicas-count {
+      color: #475569 !important;
+      -webkit-text-fill-color: #475569 !important;
+      opacity: 1 !important;
+      font-weight: 700 !important;
+    }
+
+    /* ---------------------------------------------------------
+       MODO ESCURO
+       O restante do dashboard pode ser escuro, mas os campos
+       continuam brancos com texto escuro para facilitar o uso.
+       --------------------------------------------------------- */
+    html[data-theme="dark"] #formNovoImovel .form-section {
+      background: #111827 !important;
+      border-color: #334155 !important;
+    }
+
+    html[data-theme="dark"] #formNovoImovel .form-group label,
+    html[data-theme="dark"] #formNovoImovel .form-section-title {
+      color: #f8fafc !important;
+      -webkit-text-fill-color: #f8fafc !important;
+    }
+
+    html[data-theme="dark"] #formNovoImovel .section-subtitle {
+      color: #cbd5e1 !important;
+      -webkit-text-fill-color: #cbd5e1 !important;
+    }
+
+    html[data-theme="dark"] #formNovoImovel .checkbox-item {
+      background: #1e293b !important;
+      border-color: #475569 !important;
+      color: #f8fafc !important;
+      -webkit-text-fill-color: #f8fafc !important;
+    }
+
+    html[data-theme="dark"] #formNovoImovel .checkbox-item span {
+      color: #f8fafc !important;
+      -webkit-text-fill-color: #f8fafc !important;
+    }
+
+    html[data-theme="dark"] #formNovoImovel #painelCaracteristicas .caracteristica-categoria {
+      background: #111827 !important;
+      border-color: #475569 !important;
+    }
+
+    html[data-theme="dark"] #formNovoImovel #painelCaracteristicas .caracteristica-categoria h4 {
+      color: #f8fafc !important;
+      -webkit-text-fill-color: #f8fafc !important;
+    }
+
+    html[data-theme="dark"] #formNovoImovel #painelCaracteristicas .caracteristica-item {
+      background: #1e293b !important;
+      border-color: #475569 !important;
+      color: #f8fafc !important;
+      -webkit-text-fill-color: #f8fafc !important;
+    }
+
+    html[data-theme="dark"] #formNovoImovel #painelCaracteristicas .caracteristica-item span {
+      color: #f8fafc !important;
+      -webkit-text-fill-color: #f8fafc !important;
+    }
+
+    html[data-theme="dark"] #formNovoImovel #painelCaracteristicas .caracteristica-item:hover {
+      background: #172554 !important;
+      border-color: #60a5fa !important;
+    }
+
+    html[data-theme="dark"] #formNovoImovel #painelCaracteristicas .caracteristica-item.is-selected,
+    html[data-theme="dark"] #formNovoImovel #painelCaracteristicas .caracteristica-item:has(input:checked) {
+      background: #1e3a8a !important;
+      border-color: #60a5fa !important;
+    }
+
+    html[data-theme="dark"] #formNovoImovel #painelCaracteristicas .caracteristica-item.is-selected span,
+    html[data-theme="dark"] #formNovoImovel #painelCaracteristicas .caracteristica-item:has(input:checked) span {
+      color: #dbeafe !important;
+      -webkit-text-fill-color: #dbeafe !important;
+    }
+
+    html[data-theme="dark"] #formNovoImovel .caracteristicas-toolbar input {
+      background: #0f172a !important;
+      color: #f8fafc !important;
+      -webkit-text-fill-color: #f8fafc !important;
+      border-color: #475569 !important;
+      color-scheme: dark !important;
+    }
+
+    html[data-theme="dark"] #formNovoImovel .caracteristicas-toolbar input::placeholder {
+      color: #94a3b8 !important;
+      -webkit-text-fill-color: #94a3b8 !important;
+    }
+
+    html[data-theme="dark"] #formNovoImovel .caracteristicas-count {
+      color: #cbd5e1 !important;
+      -webkit-text-fill-color: #cbd5e1 !important;
+    }
+
+    /* Contraste das áreas gerais do conteúdo no modo escuro. */
+    html[data-theme="dark"] .main-content {
+      background: #0b1120 !important;
+      color: #e5e7eb !important;
+    }
+
+    html[data-theme="dark"] .header {
+      background: #111827 !important;
+      border-color: #334155 !important;
+    }
+
+    html[data-theme="dark"] .header-left h1,
+    html[data-theme="dark"] .section-title {
+      color: #f8fafc !important;
+      -webkit-text-fill-color: #f8fafc !important;
+    }
+
+    html[data-theme="dark"] .header-left p,
+    html[data-theme="dark"] .section-subtitle {
+      color: #cbd5e1 !important;
+      -webkit-text-fill-color: #cbd5e1 !important;
+    }
+
+    html[data-theme="dark"] .dashboard-card,
+    html[data-theme="dark"] .panel-toolbar,
+    html[data-theme="dark"] .stat-card,
+    html[data-theme="dark"] .table-responsive {
+      color: #e5e7eb !important;
+    }
+
+    /* Campos fora do cadastro também devem permanecer legíveis. */
+    html[data-theme="dark"] .main-content input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+    html[data-theme="dark"] .main-content select,
+    html[data-theme="dark"] .main-content textarea {
+      color: #f8fafc !important;
+      -webkit-text-fill-color: #f8fafc !important;
+      opacity: 1 !important;
+    }
+
+    /* Nunca deixar placeholder com aparência de texto desabilitado. */
+    #formNovoImovel input::placeholder,
+    #formNovoImovel textarea::placeholder {
+      opacity: 1 !important;
+    }
+
+  </style>
 </head>
 <body>
 
@@ -1413,11 +1945,13 @@
         <span class="icon">➕</span>
         <span class="label">Novo</span>
       </button>
+      <a class="nav-item" href="/crm.html" style="text-decoration:none;">👥 CRM</a>
       <button class="nav-item" data-section="leads" onclick="abrirSecao('leads', this)">
         <span class="icon">💬</span>
         <span class="label">Leads</span>
         <span class="nav-badge nav-badge-alert" id="badgeLeads">0</span>
       </button>
+      <button class="nav-item" data-section="conversoes" onclick="abrirSecao('conversoes', this)"><span class="icon">📈</span><span class="label">Conversões</span></button>
       <button class="nav-item" onclick="abrirSecao('perfil', this)">
         <span class="icon">👤</span>
         <span class="label">Perfil</span>
@@ -1563,7 +2097,7 @@
 
             <div class="form-group">
               <label>Título do Imóvel *</label>
-              <input type="text" id="titulo" placeholder="Ex: Apartamento Luxo no Centro" required>
+              <input type="text" id="titulo" placeholder="Ex.: Apartamento com 3 quartos, suíte e varanda no Recreio" required>
             </div>
 
             <div class="form-row">
@@ -1589,7 +2123,7 @@
 
             <div class="form-group">
               <label>Descrição Completa *</label>
-              <textarea id="descricao" placeholder="Descreva o imóvel em detalhes..." rows="4" required></textarea>
+              <textarea id="descricao" placeholder="Descreva o imóvel com detalhes: localização, ambientes, conservação, diferenciais, lazer, vista e outros pontos importantes..." rows="4" required></textarea>
             </div>
           </div>
 
@@ -1597,7 +2131,7 @@
             <h3 class="form-section-title">💰 Valores</h3>
             <div class="form-group">
               <label>Preço (R$) *</label>
-              <input type="number" id="preco" placeholder="0.00" step="0.01" required>
+              <input type="number" id="preco" placeholder="Ex.: 850000.00" step="0.01" required>
             </div>
           </div>
 
@@ -1607,22 +2141,22 @@
             <div class="form-row">
               <div class="form-group">
                 <label>Endereço *</label>
-                <input type="text" id="endereco" placeholder="Rua, Avenida..." required>
+                <input type="text" id="endereco" placeholder="Ex.: Avenida das Américas" required>
               </div>
               <div class="form-group">
                 <label>Número</label>
-                <input type="text" id="numero" placeholder="Ex: 123">
+                <input type="text" id="numero" placeholder="Ex.: 123">
               </div>
             </div>
 
             <div class="form-grid">
               <div class="form-group">
                 <label>Bairro *</label>
-                <input type="text" id="bairro" placeholder="Bairro" required>
+                <input type="text" id="bairro" placeholder="Ex.: Recreio dos Bandeirantes" required>
               </div>
               <div class="form-group">
                 <label>Cidade *</label>
-                <input type="text" id="cidade" placeholder="Cidade" required>
+                <input type="text" id="cidade" placeholder="Ex.: Rio de Janeiro" required>
               </div>
               <div class="form-group">
                 <label>CEP</label>
@@ -1637,202 +2171,47 @@
             <div class="form-grid">
               <div class="form-group">
                 <label>Quartos</label>
-                <input type="number" id="quartos" min="0" placeholder="0">
+                <input type="number" id="quartos" min="0" placeholder="Ex.: 3">
               </div>
               <div class="form-group">
                 <label>Banheiros</label>
-                <input type="number" id="banheiros" min="0" placeholder="0">
+                <input type="number" id="banheiros" min="0" placeholder="Ex.: 2">
               </div>
               <div class="form-group">
                 <label>Área (m²)</label>
-                <input type="number" id="area" step="0.01" placeholder="0.00">
+                <input type="number" id="area" step="0.01" placeholder="Ex.: 120.50">
               </div>
               <div class="form-group">
                 <label>Garagem</label>
-                <input type="number" id="garagem" min="0" placeholder="0">
+                <input type="number" id="garagem" min="0" placeholder="Ex.: 2">
               </div>
             </div>
 
             <div class="form-checkboxes">
               <label class="checkbox-item">
+                <input type="checkbox" id="piscina">
+                <span>🏊 Tem piscina?</span>
+              </label>
+              <label class="checkbox-item">
                 <input type="checkbox" id="destaque">
-                <span>⭐ Destacar Imóvel?</span>
+                <span>⭐ Destacar imóvel?</span>
               </label>
             </div>
+          </div>
 
-            <div class="caracteristicas-avancadas" aria-labelledby="tituloCaracteristicasAvancadas">
-              <div class="caracteristicas-avancadas-header">
-                <div>
-                  <h4 id="tituloCaracteristicasAvancadas">✨ Características adicionais</h4>
-                  <p>Selecione todas as características que fazem parte deste imóvel.</p>
-                </div>
-                <span class="caracteristicas-contador" id="contadorCaracteristicas">0 selecionadas</span>
+          <div class="form-section">
+            <div class="section-heading-row" style="margin-bottom:16px;">
+              <div>
+                <h3 class="form-section-title" style="margin-bottom:4px;">✨ Detalhes e diferenciais do imóvel</h3>
+                <p class="section-subtitle">Selecione apenas os recursos realmente existentes. Eles serão exibidos na página pública por categoria.</p>
               </div>
-
-              <div class="caracteristicas-grupos">
-                <div class="caracteristica-grupo">
-                  <h5>🏠 Estrutura e conforto</h5>
-                  <div class="caracteristica-opcoes">
-                    <label><input type="checkbox" id="piscina" name="caracteristicas" value="Piscina"><span>Piscina</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Elevador"><span>Elevador</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Piscina aquecida"><span>Piscina aquecida</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Jacuzzi"><span>Jacuzzi</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Hidromassagem"><span>Hidromassagem</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Sauna"><span>Sauna</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Spa"><span>Spa</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Ofurô"><span>Ofurô</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Varanda"><span>Varanda</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Varanda gourmet"><span>Varanda gourmet</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Terraço"><span>Terraço</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Solarium"><span>Solarium</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Jardim"><span>Jardim</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Quintal privativo"><span>Quintal privativo</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Área externa ampla"><span>Área externa ampla</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Pé-direito alto"><span>Pé-direito alto</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Mezanino"><span>Mezanino</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Suíte"><span>Suíte</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Suíte master"><span>Suíte master</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Closet"><span>Closet</span></label>
-                  </div>
-                </div>
-
-                <div class="caracteristica-grupo">
-                  <h5>🚗 Garagem e acesso</h5>
-                  <div class="caracteristica-opcoes">
-                    <label><input type="checkbox" name="caracteristicas" value="Garagem coberta"><span>Garagem coberta</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Garagem descoberta"><span>Garagem descoberta</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Vaga para 1 carro"><span>Vaga para 1 carro</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Vaga para 2 carros"><span>Vaga para 2 carros</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Vaga para 3 carros"><span>Vaga para 3 carros</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Vaga para 4 ou mais carros"><span>Vaga para 4 ou mais carros</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Garagem privativa"><span>Garagem privativa</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Garagem subterrânea"><span>Garagem subterrânea</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Portão eletrônico"><span>Portão eletrônico</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Portaria 24 horas"><span>Portaria 24 horas</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Controle de acesso"><span>Controle de acesso</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Acesso para cadeirantes"><span>Acesso para cadeirantes</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Rampa de acesso"><span>Rampa de acesso</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Entrada independente"><span>Entrada independente</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Fácil acesso à propriedade"><span>Fácil acesso à propriedade</span></label>
-                  </div>
-                </div>
-
-                <div class="caracteristica-grupo">
-                  <h5>🍖 Lazer e convivência</h5>
-                  <div class="caracteristica-opcoes">
-                    <label><input type="checkbox" name="caracteristicas" value="Churrasqueira"><span>Churrasqueira</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Espaço gourmet"><span>Espaço gourmet</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Salão de festas"><span>Salão de festas</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Salão de jogos"><span>Salão de jogos</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Playground"><span>Playground</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Academia"><span>Academia</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Quadra esportiva"><span>Quadra esportiva</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Campo de futebol"><span>Campo de futebol</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Área para confraternização"><span>Área para confraternização</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Espaço para eventos"><span>Espaço para eventos</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Espaço kids"><span>Espaço kids</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Fire pit"><span>Fire pit</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Área de convivência"><span>Área de convivência</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Jardim de inverno"><span>Jardim de inverno</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Espaço para pets"><span>Espaço para pets</span></label>
-                  </div>
-                </div>
-
-                <div class="caracteristica-grupo">
-                  <h5>🛏️ Quartos e ambientes</h5>
-                  <div class="caracteristica-opcoes">
-                    <label><input type="checkbox" name="caracteristicas" value="1 quarto"><span>1 quarto</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="2 quartos"><span>2 quartos</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="3 quartos"><span>3 quartos</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="4 quartos"><span>4 quartos</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="5 ou mais quartos"><span>5 ou mais quartos</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Suíte com varanda"><span>Suíte com varanda</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Suíte com closet"><span>Suíte com closet</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Suíte master"><span>Suíte master</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Quarto de hóspedes"><span>Quarto de hóspedes</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Escritório"><span>Escritório</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Home office"><span>Home office</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Sala de estar"><span>Sala de estar</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Sala de jantar"><span>Sala de jantar</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Sala de TV"><span>Sala de TV</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Sala integrada"><span>Sala integrada</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Cozinha planejada"><span>Cozinha planejada</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Cozinha americana"><span>Cozinha americana</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Cozinha gourmet"><span>Cozinha gourmet</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Lavabo"><span>Lavabo</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Dependência de serviço"><span>Dependência de serviço</span></label>
-                  </div>
-                </div>
-
-                <div class="caracteristica-grupo">
-                  <h5>✨ Acabamentos e tecnologia</h5>
-                  <div class="caracteristica-opcoes">
-                    <label><input type="checkbox" name="caracteristicas" value="Armários planejados"><span>Armários planejados</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Móveis planejados"><span>Móveis planejados</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Bancadas em granito"><span>Bancadas em granito</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Bancadas em mármore"><span>Bancadas em mármore</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Porcelanato"><span>Porcelanato</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Piso de madeira"><span>Piso de madeira</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Piso vinílico"><span>Piso vinílico</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Rebaixamento em gesso"><span>Rebaixamento em gesso</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Iluminação planejada"><span>Iluminação planejada</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Projeto arquitetônico"><span>Projeto arquitetônico</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Projeto de iluminação"><span>Projeto de iluminação</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Automação residencial"><span>Automação residencial</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Casa inteligente"><span>Casa inteligente</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Fechadura eletrônica"><span>Fechadura eletrônica</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Interfone"><span>Interfone</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Câmeras de segurança"><span>Câmeras de segurança</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Sistema de alarme"><span>Sistema de alarme</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Portas automatizadas"><span>Portas automatizadas</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Persianas automatizadas"><span>Persianas automatizadas</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Ar-condicionado"><span>Ar-condicionado</span></label>
-                  </div>
-                </div>
-
-                <div class="caracteristica-grupo">
-                  <h5>🌄 Localização e características externas</h5>
-                  <div class="caracteristica-opcoes">
-                    <label><input type="checkbox" name="caracteristicas" value="Vista para montanhas"><span>Vista para montanhas</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Vista panorâmica"><span>Vista panorâmica</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Vista para o verde"><span>Vista para o verde</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Vista para o mar"><span>Vista para o mar</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Frente para área verde"><span>Frente para área verde</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Rua tranquila"><span>Rua tranquila</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Rua sem saída"><span>Rua sem saída</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Próximo ao comércio"><span>Próximo ao comércio</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Próximo a escolas"><span>Próximo a escolas</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Próximo a hospitais"><span>Próximo a hospitais</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Próximo ao centro"><span>Próximo ao centro</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Fácil acesso à rodovia"><span>Fácil acesso à rodovia</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Região valorizada"><span>Região valorizada</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Bairro residencial"><span>Bairro residencial</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Condomínio fechado"><span>Condomínio fechado</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Área arborizada"><span>Área arborizada</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Muito ensolarado"><span>Muito ensolarado</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Boa ventilação"><span>Boa ventilação</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Privacidade"><span>Privacidade</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Excelente posição solar"><span>Excelente posição solar</span></label>
-                  </div>
-                </div>
-
-                <div class="caracteristica-grupo">
-                  <h5>🔐 Segurança, sustentabilidade e infraestrutura</h5>
-                  <div class="caracteristica-opcoes">
-                    <label><input type="checkbox" name="caracteristicas" value="Energia solar"><span>Energia solar</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Aquecimento solar"><span>Aquecimento solar</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Sistema de captação de água da chuva"><span>Sistema de captação de água da chuva</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Cisterna"><span>Cisterna</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Poço artesiano"><span>Poço artesiano</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Gerador de energia"><span>Gerador de energia</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Internet de fibra óptica"><span>Internet de fibra óptica</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Segurança 24 horas"><span>Segurança 24 horas</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Cerca elétrica"><span>Cerca elétrica</span></label>
-                    <label><input type="checkbox" name="caracteristicas" value="Documentação regularizada"><span>Documentação regularizada</span></label>
-                  </div>
-                </div>
-              </div>
+              <button type="button" class="btn btn-light btn-compact" onclick="limparCaracteristicas()">Limpar seleção</button>
             </div>
+            <div class="caracteristicas-toolbar">
+              <input id="buscaCaracteristicas" type="search" placeholder="🔎 Buscar característica..." oninput="filtrarCaracteristicas()" aria-label="Buscar característica">
+              <span id="contadorCaracteristicas" class="caracteristicas-count">0 selecionadas</span>
+            </div>
+            <div id="painelCaracteristicas" class="caracteristicas-categorias"></div>
           </div>
 
           <div class="form-section">
@@ -1900,6 +2279,13 @@
         </div>
       </section>
 
+      <!-- CONVERSÕES V11 -->
+      <section id="conversoes" class="section">
+        <div class="section-heading-row"><div><div class="section-title" style="margin-bottom:6px;">📈 Motor de Conversão</div><p class="section-subtitle">Mede cliques de intenção comercial. Clique não é sinônimo de lead, visita realizada ou venda.</p></div><div class="section-heading-actions"><select id="filtroConversoesDias" class="btn btn-light btn-compact" onchange="carregarConversoes()"><option value="7">Últimos 7 dias</option><option value="30" selected>Últimos 30 dias</option><option value="90">Últimos 90 dias</option><option value="365">Último ano</option></select><button class="btn btn-light btn-compact" onclick="carregarConversoes()">↻ Atualizar</button></div></div>
+        <div class="conversion-stat-grid"><div class="conversion-stat conversion-stat-total"><span>Total de cliques</span><strong id="convTotal">0</strong><small>todos os CTAs</small></div><div class="conversion-stat"><span>Tenho interesse</span><strong id="convInteresse">0</strong><small>intenção inicial</small></div><div class="conversion-stat"><span>Agendar visita</span><strong id="convVisita">0</strong><small>intenção de visita</small></div><div class="conversion-stat"><span>Fazer proposta</span><strong id="convProposta">0</strong><small>intenção comercial</small></div></div>
+        <div class="dashboard-card" style="margin-top:20px;"><h3>🏆 Imóveis que mais convertem</h3><p class="section-subtitle">Ranking por cliques nos CTAs.</p><div class="table-responsive"><table class="tabela"><thead><tr><th>Imóvel</th><th>Localização</th><th>Interesse</th><th>Visita</th><th>Proposta</th><th>Total</th></tr></thead><tbody id="tabelaConversoes"><tr><td colspan="6" class="table-empty">Carregando...</td></tr></tbody></table></div></div>
+      </section>
+
       <!-- PERFIL -->
       <section id="perfil" class="section">
         <div class="section-title">👤 Meu Perfil</div>
@@ -1924,7 +2310,7 @@
             </div>
             <div style="border-bottom: 2px solid #cbd5e1; padding-bottom: 16px;">
               <div style="font-weight: 700; color: #64748b; margin-bottom: 8px;">WhatsApp</div>
-              <div><a class="profile-whatsapp" href="https://wa.me/5521972664423" target="_blank" rel="noopener noreferrer">💬 (21) 97266-4423</a></div>
+              <div><a class="profile-whatsapp" href="https://wa.me/5521991822134" target="_blank" rel="noopener noreferrer">💬 (21) 99182-2134</a></div>
             </div>
             <div style="border-bottom: 2px solid #cbd5e1; padding-bottom: 16px;">
               <div style="font-weight: 700; color: #64748b; margin-bottom: 8px;">Horário</div>
@@ -1933,19 +2319,31 @@
           </div>
         </div>
 
-        <div class="form-section" style="max-width: 800px; margin-top: 24px;">
-          <h3 class="form-section-title">🔐 Alterar senha</h3>
-          <p class="section-subtitle">Por segurança, a nova senha deve ter pelo menos 12 caracteres.</p>
-          <form id="formAlterarSenha" class="auth-form" autocomplete="off">
-            <label for="senhaAtual">Senha atual</label>
-            <input type="password" id="senhaAtual" name="senhaAtual" autocomplete="current-password" minlength="1" required>
-            <label for="novaSenha">Nova senha</label>
-            <input type="password" id="novaSenha" name="novaSenha" autocomplete="new-password" minlength="12" maxlength="200" required>
-            <label for="confirmarSenha">Confirmar nova senha</label>
-            <input type="password" id="confirmarSenha" name="confirmarSenha" autocomplete="new-password" minlength="12" maxlength="200" required>
-            <button type="submit" class="btn btn-primary">🔐 Alterar senha</button>
-            <div id="msgAlterarSenha" class="form-message" role="status" aria-live="polite"></div>
-          </form>
+<div class="section-header">
+          <div>
+            <h2>👤 Meu perfil</h2>
+            <p>Gerencie seus dados de acesso ao painel.</p>
+          </div>
+        </div>
+        <div class="dashboard-card" style="max-width:760px;">
+          <h3>🔐 Trocar senha</h3>
+          <p style="color:#475569;margin-bottom:18px;">Por segurança, use uma senha com pelo menos 12 caracteres, uma letra maiúscula e um número.</p>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="senhaAtualPainel">Senha atual</label>
+              <input id="senhaAtualPainel" type="password" autocomplete="current-password" placeholder="Digite sua senha atual">
+            </div>
+            <div class="form-group">
+              <label for="novaSenhaPainel">Nova senha</label>
+              <input id="novaSenhaPainel" type="password" autocomplete="new-password" placeholder="Digite a nova senha">
+            </div>
+            <div class="form-group">
+              <label for="confirmarSenhaPainel">Confirmar nova senha</label>
+              <input id="confirmarSenhaPainel" type="password" autocomplete="new-password" placeholder="Repita a nova senha">
+            </div>
+          </div>
+          <button type="button" class="btn btn-primary" onclick="alterarSenhaPainel()">🔑 Alterar senha</button>
+          <div id="msgSenhaPainel" class="form-message"></div>
         </div>
       </section>
 
@@ -2011,7 +2409,8 @@
   </div>
 </div>
 
-<script src="dashboard.js"></script>
+<script src="/caracteristicas.js"></script>
+<script src="dashboard.js?v=12.1.4"></script>
 
 </body>
 </html>
