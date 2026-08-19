@@ -1,19 +1,30 @@
+
+// V8 Premium: tema persistente (light/dark) sem depender de framework.
+function aplicarTema() {
+  const salvo = localStorage.getItem('tema');
+  const escuro = salvo === 'dark';
+  document.documentElement.dataset.theme = escuro ? 'dark' : 'light';
+}
+function alternarTema() {
+  const dark = document.documentElement.dataset.theme !== 'dark';
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  localStorage.setItem('tema', dark ? 'dark' : 'light');
+}
+function criarBotaoTema() {
+  if (document.getElementById('theme-toggle')) return;
+  const button = document.createElement('button');
+  button.id = 'theme-toggle'; button.type = 'button'; button.title = 'Alternar tema';
+  button.setAttribute('aria-label', 'Alternar tema claro/escuro'); button.textContent = '◐';
+  button.addEventListener('click', alternarTema); document.body.appendChild(button);
+}
+aplicarTema();
+document.addEventListener('DOMContentLoaded', criarBotaoTema);
 const API_BASE = '/api';
 let usuario = null;
 let imovelEditandoId = null;
 let imoveisPainelCache = [];
 let leadsPainelCache = [];
 let imovelAtualGerenciandoImagens = null;
-let mediaConfig = { armazenamentoMidia: 'local', uploadDiretoBlob: false, maxFotoMB: 5, maxVideoMB: 50 };
-
-async function carregarConfiguracaoMidia() {
-  try {
-    const res = await fetch(`${API_BASE}/config`, { credentials: 'same-origin', cache: 'no-store' });
-    if (res.ok) mediaConfig = { ...mediaConfig, ...(await res.json()) };
-  } catch (e) {
-    console.warn('Não foi possível obter a configuração de mídia; usando upload pelo servidor.', e);
-  }
-}
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
@@ -23,16 +34,6 @@ function moeda(v) { return Number(v || 0).toLocaleString('pt-BR', { style:'curre
 function formatDate(v) { const d = new Date(v); return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString('pt-BR'); }
 
 
-async function uploadArquivoDiretoBlob(file, kind, onProgress) {
-  const { upload } = await import('https://esm.sh/@vercel/blob@2.6.1/client');
-  return upload(`imoveis/${imovelAtualGerenciandoImagens}/${kind}/${file.name}`, file, {
-    access: 'public',
-    handleUploadUrl: `${API_BASE}/blob/upload`,
-    clientPayload: JSON.stringify({ kind, imovelId: imovelAtualGerenciandoImagens }),
-    multipart: file.size > 4 * 1024 * 1024,
-    onUploadProgress: ({ percentage }) => onProgress?.(Math.round(percentage || 0))
-  });
-}
 
 async function apiFetch(url, options = {}) {
   const headers = new Headers(options.headers || {});
@@ -82,6 +83,7 @@ function abrirSecao(secaoId, navElement) {
   if (secaoId === 'inicio') carregarDashboard();
   if (secaoId === 'imoveis') carregarImoveis();
   if (secaoId === 'leads') carregarLeads();
+  if (secaoId === 'conversoes') carregarConversoes();
   if (secaoId === 'novo-imovel' && !imovelEditandoId) prepararNovoImovel();
 }
 
@@ -97,6 +99,11 @@ async function carregarDashboard() {
     document.getElementById('tabelaUltimosImoveis').innerHTML = imoveis.slice(0,3).map(i => `<tr><td><strong>${escapeHtml(i.titulo)}</strong></td><td>${escapeHtml(i.tipo)}</td><td>${moeda(i.preco)}</td></tr>`).join('') || '<tr><td colspan="3" class="table-empty">Nenhum imóvel</td></tr>';
     document.getElementById('tabelaUltimosLeads').innerHTML = leads.slice(0,3).map(l => `<tr><td>${escapeHtml(l.nome)}</td><td>${escapeHtml(l.telefone)}</td><td><span class="badge badge-${escapeAttr(l.status)}">${escapeHtml(l.status)}</span></td></tr>`).join('') || '<tr><td colspan="3" class="table-empty">Nenhum lead</td></tr>';
   } catch (err) { if (err.message !== 'UNAUTHORIZED') console.error('Erro dashboard:', err); }
+}
+
+async function carregarConversoes(){
+  const dias=Number(document.getElementById('filtroConversoesDias')?.value||30);
+  try{const res=await apiFetch(`${API_BASE}/admin/conversoes?days=${encodeURIComponent(dias)}`);const data=await res.json();if(!res.ok)throw new Error(data.erro||'Falha ao carregar conversões');const p=data.por_tipo||{};document.getElementById('convTotal').textContent=Number(data.total||0);document.getElementById('convInteresse').textContent=Number(p.interesse||0);document.getElementById('convVisita').textContent=Number(p.visita||0);document.getElementById('convProposta').textContent=Number(p.proposta||0);const tb=document.getElementById('tabelaConversoes');const r=data.ranking||[];if(tb)tb.innerHTML=r.length?r.map(x=>`<tr><td><strong>${escapeHtml(x.titulo||'Imóvel #'+x.imovel_id)}</strong><br><small>Código FR-${String(x.imovel_id).padStart(4,'0')}</small></td><td>${escapeHtml([x.bairro,x.cidade].filter(Boolean).join(' — ')||'—')}</td><td>${Number(x.interesse||0)}</td><td>${Number(x.visita||0)}</td><td>${Number(x.proposta||0)}</td><td><strong>${Number(x.total||0)}</strong></td></tr>`).join(''):'<tr><td colspan="6" class="table-empty">Ainda não há cliques de conversão no período.</td></tr>';}catch(e){if(e.message!=='UNAUTHORIZED'){console.error(e);const tb=document.getElementById('tabelaConversoes');if(tb)tb.innerHTML='<tr><td colspan="6" class="table-empty">Não foi possível carregar as conversões.</td></tr>';}}
 }
 
 async function carregarImoveis() {
@@ -135,43 +142,67 @@ function filtrarImoveisPainel() {
       <td class="table-actions">
         <button class="btn btn-light btn-compact" onclick="editarImovel(${i.id})">✏️ Editar</button>
         <button class="btn btn-light btn-compact" onclick="abrirGerenciadorImagens(${i.id})">📷 Mídias</button>
-        ${Number(i.ativo) ? '<button class="btn btn-danger btn-compact" onclick="deletarImovel('+i.id+')">Desativar</button>' : '<button class="btn btn-success btn-compact" onclick="reativarImovel('+i.id+')">Reativar</button><button class="btn btn-danger btn-compact" onclick="excluirImovelDefinitivo('+i.id+')">🗑️ Excluir definitivo</button>'}
+        ${Number(i.ativo) ? '<button class="btn btn-danger btn-compact" onclick="deletarImovel('+i.id+')">Desativar</button>' : '<button class="btn btn-success btn-compact" onclick="reativarImovel('+i.id+')">Reativar</button>'}
       </td>
     </tr>`).join('') || '<tr><td colspan="7" class="table-empty">Nenhum imóvel encontrado.</td></tr>';
 }
 
-function obterCaracteristicasSelecionadas() {
-  const valores = Array.from(document.querySelectorAll('input[name="caracteristicas"]:checked')).map(el => el.value);
-  const contador = document.getElementById('contadorCaracteristicas');
-  if (contador) contador.textContent = `${valores.length} selecionada${valores.length === 1 ? '' : 's'}`;
-  return valores;
+function getCaracteristicasConfiguradas() { return window.CARACTERISTICAS_IMOVEL || {}; }
+function getCaracteristicasSelecionadas() {
+  return Array.from(document.querySelectorAll('#painelCaracteristicas input[type="checkbox"]:checked')).map(i => i.value);
 }
-
 function atualizarContadorCaracteristicas() {
-  obterCaracteristicasSelecionadas();
+  const el = document.getElementById('contadorCaracteristicas');
+  if (el) el.textContent = `${getCaracteristicasSelecionadas().length} selecionadas`;
+}
+function renderizarCaracteristicasForm(selecionadas = []) {
+  const painel = document.getElementById('painelCaracteristicas'); if (!painel) return;
+  const set = new Set(selecionadas || []);
+  const config = getCaracteristicasConfiguradas();
+  painel.innerHTML = Object.entries(config).map(([categoria, itens]) => `
+    <section class="caracteristica-categoria" data-categoria="${escapeAttr(categoria)}">
+      <h4>${escapeHtml(categoria)}</h4>
+      <div class="caracteristica-grid">
+        ${itens.map(([chave,nome]) => `<label class="caracteristica-item${set.has(chave)?' is-selected':''}" data-label="${escapeAttr(nome.toLowerCase())}"><input type="checkbox" value="${escapeAttr(chave)}" ${set.has(chave)?'checked':''} onchange="atualizarContadorCaracteristicas(); this.closest('.caracteristica-item')?.classList.toggle('is-selected', this.checked)"><span>${escapeHtml(nome)}</span></label>`).join('')}
+      </div>
+    </section>`).join('');
+  atualizarContadorCaracteristicas();
+}
+function filtrarCaracteristicas() {
+  const termo = (document.getElementById('buscaCaracteristicas')?.value || '').trim().toLowerCase();
+  document.querySelectorAll('#painelCaracteristicas .caracteristica-item').forEach(item => {
+    const visivel = !termo || (item.dataset.label || '').includes(termo);
+    item.classList.toggle('is-hidden', !visivel);
+  });
+  document.querySelectorAll('#painelCaracteristicas .caracteristica-categoria').forEach(grupo => {
+    const algum = Array.from(grupo.querySelectorAll('.caracteristica-item')).some(i => !i.classList.contains('is-hidden'));
+    grupo.style.display = algum ? '' : 'none';
+  });
+}
+function limparCaracteristicas() {
+  document.querySelectorAll('#painelCaracteristicas input[type="checkbox"]').forEach(i => i.checked = false);
+  atualizarContadorCaracteristicas();
 }
 
 function coletarDadosImovel() {
-  const caracteristicas = obterCaracteristicasSelecionadas();
   return {
     titulo: document.getElementById('titulo').value.trim(), tipo: document.getElementById('tipo').value, operacao: document.getElementById('operacao').value,
     descricao: document.getElementById('descricao').value.trim(), preco: Number(document.getElementById('preco').value), endereco: document.getElementById('endereco').value.trim(),
     numero: document.getElementById('numero').value.trim(), bairro: document.getElementById('bairro').value.trim(), cidade: document.getElementById('cidade').value.trim(), cep: document.getElementById('cep').value.trim(),
     quartos: Number(document.getElementById('quartos').value) || 0, banheiros: Number(document.getElementById('banheiros').value) || 0, area: Number(document.getElementById('area').value) || 0,
-    garagem: Number(document.getElementById('garagem').value) || 0, piscina: document.getElementById('piscina')?.checked ? 1 : 0, destaque: document.getElementById('destaque').checked ? 1 : 0,
-    caracteristicas
+    garagem: Number(document.getElementById('garagem').value) || 0, piscina: document.getElementById('piscina').checked ? 1 : 0, destaque: document.getElementById('destaque').checked ? 1 : 0, caracteristicas: getCaracteristicasSelecionadas()
   };
 }
 
 function prepararNovoImovel() {
   imovelEditandoId = null;
   document.getElementById('formNovoImovel')?.reset();
+  renderizarCaracteristicasForm([]);
   const fotos = document.getElementById('fotosImovel'); if (fotos) fotos.value = '';
   const preview = document.getElementById('previewFotos'); if (preview) preview.innerHTML = '';
   document.getElementById('tituloSecaoImovel').textContent = '➕ Cadastrar Novo Imóvel';
   document.getElementById('btnSalvarImovel').textContent = '✅ Cadastrar Imóvel';
   const editPhotos = document.getElementById('btnGerenciarFotosEdicao'); if (editPhotos) editPhotos.style.display = 'none';
-  atualizarContadorCaracteristicas();
 }
 
 function preencherFormularioImovel(i) {
@@ -179,17 +210,8 @@ function preencherFormularioImovel(i) {
   Object.entries(map).forEach(([id,value]) => { const el=document.getElementById(id); if(el) el.value=value; });
   document.getElementById('piscina').checked = Boolean(i.piscina);
   document.getElementById('destaque').checked = Boolean(i.destaque);
-  let caracteristicas = [];
-  try { caracteristicas = Array.isArray(i.caracteristicas) ? i.caracteristicas : JSON.parse(i.caracteristicas || '[]'); } catch (_) {}
-  caracteristicas = Array.isArray(caracteristicas) ? caracteristicas : [];
-  if (Number(i.piscina) === 1 && !caracteristicas.includes('Piscina')) caracteristicas.unshift('Piscina');
-  document.querySelectorAll('input[name="caracteristicas"]').forEach(el => { el.checked = caracteristicas.includes(el.value); });
-  atualizarContadorCaracteristicas();
+  renderizarCaracteristicasForm(i.caracteristicas || []);
 }
-
-document.addEventListener('change', e => {
-  if (e.target.matches('input[name="caracteristicas"]')) atualizarContadorCaracteristicas();
-});
 
 async function carregarPreviewExistentes(id) {
   const grid = document.getElementById('previewFotos'); if (!grid) return;
@@ -199,6 +221,8 @@ async function carregarPreviewExistentes(id) {
     grid.innerHTML = imagens.length ? imagens.map(img => `<div class="photo-preview existing"><img src="${escapeAttr(img.arquivo || img.url_externa)}" alt="Foto do imóvel"><span>${img.principal ? '⭐ Principal' : 'Foto'}</span></div>`).join('') : '<div class="photo-empty">Nenhuma foto cadastrada. Use “Gerenciar fotos”.</div>';
   } catch (e) { console.error(e); }
 }
+
+renderizarCaracteristicasForm([]);
 
 document.getElementById('formNovoImovel')?.addEventListener('submit', async e => {
   e.preventDefault();
@@ -211,30 +235,13 @@ document.getElementById('formNovoImovel')?.addEventListener('submit', async e =>
     const fotos=Array.from(document.getElementById('fotosImovel')?.files || []);
 
     if(fotos.length && idImovel){
-      const useDirectBlob = Boolean(mediaConfig.uploadDiretoBlob);
-
       for(let i=0;i<fotos.length;i++){
         const f=fotos[i];
         msg.textContent=`⏳ Enviando foto ${i+1}/${fotos.length}...`;
-
-        if(useDirectBlob){
-          const blob=await uploadArquivoDiretoBlob(f,'imagens',p=>{
-            msg.textContent=`⏳ Enviando foto ${i+1}/${fotos.length}: ${p}%`;
-          });
-          const ur=await apiFetch(`${API_BASE}/imoveis/${idImovel}/imagens/blob`,{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({arquivo:blob.url})
-          });
-          const ud=await ur.json();
-          if(!ur.ok) throw new Error('Imóvel salvo, mas uma foto falhou: '+(ud.erro||'erro no registro'));
-        }else{
-          const fd=new FormData();
-          fd.append('imagens',f);
-          const ur=await apiFetch(`${API_BASE}/imoveis/${idImovel}/fotos`,{method:'POST',body:fd});
-          const ud=await ur.json();
-          if(!ur.ok) throw new Error('Imóvel salvo, mas uma foto falhou: '+(ud.erro||'erro no upload'));
-        }
+        const fd=new FormData(); fd.append('imagens',f);
+        const ur=await apiFetch(`${API_BASE}/imoveis/${idImovel}/fotos`,{method:'POST',body:fd});
+        const ud=await ur.json();
+        if(!ur.ok) throw new Error('Imóvel salvo, mas uma foto falhou: '+(ud.erro||'erro no upload'));
       }
     }
     msg.className='form-message success'; msg.textContent=editando?'✅ Imóvel atualizado com sucesso!':'✅ Imóvel cadastrado com sucesso!';
@@ -243,44 +250,68 @@ document.getElementById('formNovoImovel')?.addEventListener('submit', async e =>
   } catch(err){ if(err.message!=='UNAUTHORIZED'){ console.error(err); msg.className='form-message error'; msg.textContent='❌ '+err.message; } }
 });
 
-document.getElementById('btnLimparImovel')?.addEventListener('click',(e)=>{ e.preventDefault(); prepararNovoImovel(); abrirSecao('novo-imovel'); window.scrollTo({top:0,behavior:'smooth'}); });
+document.getElementById('btnLimparImovel')?.addEventListener('click',()=>setTimeout(prepararNovoImovel,0));
 document.getElementById('btnGerenciarFotosEdicao')?.addEventListener('click',()=>{ if(imovelEditandoId) abrirGerenciadorImagens(imovelEditandoId); });
 
 async function editarImovel(id){
   try{
     const res=await apiFetch(`${API_BASE}/imoveis/${id}`); const data=await res.json(); if(!res.ok||!data.imovel) throw new Error(data.erro||'Imóvel não encontrado');
-    abrirSecao('novo-imovel');
-    imovelEditandoId=id;
-    preencherFormularioImovel(data.imovel);
-    document.getElementById('tituloSecaoImovel').textContent='✏️ Editar Imóvel';
-    document.getElementById('btnSalvarImovel').textContent='💾 Salvar Alterações';
-    const b=document.getElementById('btnGerenciarFotosEdicao'); if(b) b.style.display='inline-flex';
-    await carregarPreviewExistentes(id);
-    window.scrollTo({top:0,behavior:'smooth'});
+    imovelEditandoId=id; preencherFormularioImovel(data.imovel); document.getElementById('tituloSecaoImovel').textContent='✏️ Editar Imóvel'; document.getElementById('btnSalvarImovel').textContent='💾 Salvar Alterações';
+    const b=document.getElementById('btnGerenciarFotosEdicao'); if(b) b.style.display='inline-flex'; await carregarPreviewExistentes(id); abrirSecao('novo-imovel'); window.scrollTo({top:0,behavior:'smooth'});
   }catch(err){ if(err.message!=='UNAUTHORIZED') alert('Não foi possível carregar o imóvel para edição: '+err.message); }
 }
 
 async function deletarImovel(id){
-  if(!confirm('Desativar este imóvel? Ele continuará salvo e poderá ser reativado.')) return;
-  try{ const res=await apiFetch(`${API_BASE}/imoveis/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ativo:0})}); const d=await res.json(); if(!res.ok) throw new Error(d.erro||'Falha'); await carregarImoveis(); await carregarDashboard(); }catch(e){if(e.message!=='UNAUTHORIZED') alert(e.message);}
+  const imovel = imoveisPainelCache.find(x => Number(x.id) === Number(id));
+  const titulo = imovel?.titulo ? `\n\n"${imovel.titulo}"` : '';
+  const escolha = prompt(
+    `O que deseja fazer com este imóvel?${titulo}\n\n` +
+    `1 = Desativar (recomendado: mantém os dados)\n` +
+    `2 = EXCLUIR DEFINITIVAMENTE (apaga anúncio, fotos e vídeos)\n\n` +
+    `Digite 1 ou 2:`
+  );
+  if (escolha === null) return;
+  if (escolha.trim() === '1') {
+    try{
+      const res=await apiFetch(`${API_BASE}/imoveis/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ativo:0})});
+      const d=await res.json(); if(!res.ok) throw new Error(d.erro||'Falha ao desativar imóvel');
+      await carregarImoveis(); await carregarDashboard();
+    }catch(e){if(e.message!=='UNAUTHORIZED') alert('❌ '+e.message);}
+    return;
+  }
+  if (escolha.trim() !== '2') {
+    alert('Operação cancelada. Digite 1 ou 2.');
+    return;
+  }
+  if (!confirm(`ATENÇÃO: a exclusão definitiva não pode ser desfeita.${titulo}\n\nTodas as fotos e vídeos associados também serão removidos.\n\nContinuar?`)) return;
+  try{
+    const res=await apiFetch(`${API_BASE}/imoveis/${id}/excluir-definitivo`,{method:'POST'});
+    const d=await res.json(); if(!res.ok) throw new Error(d.erro||'Falha ao excluir imóvel');
+    alert('✅ '+(d.mensagem||'Imóvel excluído definitivamente.'));
+    if(Number(imovelEditandoId)===Number(id)) prepararNovoImovel();
+    await carregarImoveis(); await carregarDashboard();
+  }catch(e){if(e.message!=='UNAUTHORIZED') alert('❌ '+e.message);}
 }
 async function reativarImovel(id){
   try{ const res=await apiFetch(`${API_BASE}/imoveis/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ativo:1})}); const d=await res.json(); if(!res.ok) throw new Error(d.erro||'Falha'); await carregarImoveis(); await carregarDashboard(); }catch(e){if(e.message!=='UNAUTHORIZED') alert(e.message);}
 }
 
-async function excluirImovelDefinitivo(id){
-  const imovel=imoveisPainelCache.find(i=>Number(i.id)===Number(id));
-  const titulo=imovel?.titulo || `ID ${id}`;
-  if(!confirm(`EXCLUSÃO DEFINITIVA\n\nImóvel: ${titulo}\n\nIsso removerá o imóvel e todas as fotos/vídeos associados. Esta ação não pode ser desfeita.\n\nDeseja continuar?`)) return;
+
+async function alterarSenhaPainel(){
+  const atual=document.getElementById('senhaAtualPainel')?.value||'';
+  const nova=document.getElementById('novaSenhaPainel')?.value||'';
+  const confirmar=document.getElementById('confirmarSenhaPainel')?.value||'';
+  const msg=document.getElementById('msgSenhaPainel');
+  if(!atual||!nova||!confirmar){if(msg){msg.className='form-message error';msg.textContent='❌ Preencha todos os campos.';}return;}
   try{
-    const res=await apiFetch(`${API_BASE}/imoveis/${id}/excluir-definitivo`,{method:'POST'});
-    const d=await res.json();
-    if(!res.ok) throw new Error(d.erro||'Falha ao excluir imóvel');
-    alert('✅ '+(d.mensagem||'Imóvel excluído definitivamente.'));
-    if(Number(imovelEditandoId)===Number(id)) prepararNovoImovel();
-    await carregarImoveis();
-    await carregarDashboard();
-  }catch(e){ if(e.message!=='UNAUTHORIZED') alert('❌ '+e.message); }
+    const res=await apiFetch(`${API_BASE}/auth/change-password`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({senhaAtual:atual,novaSenha:nova,confirmarSenha:confirmar})
+    });
+    const d=await res.json(); if(!res.ok) throw new Error(d.erro||'Não foi possível alterar a senha.');
+    if(msg){msg.className='form-message success';msg.textContent='✅ '+d.mensagem;}
+    setTimeout(()=>window.location.href='/?login=1',1200);
+  }catch(e){if(e.message!=='UNAUTHORIZED'&&msg){msg.className='form-message error';msg.textContent='❌ '+e.message;}}
 }
 
 // LEADS
@@ -344,109 +375,20 @@ function fecharModalImagens(){
 
 async function carregarListaImagens(id){
   try{
-    const imovelId = Number(id);
-
-    if(!Number.isInteger(imovelId) || imovelId <= 0){
-      console.error('[MÍDIA] ID de imóvel inválido:', id);
-      return;
-    }
-
-    const res = await apiFetch(`${API_BASE}/imoveis/${imovelId}/imagens`);
-    const d = await res.json();
-
-    if(!res.ok){
-      throw new Error(d.erro || `Falha ao carregar imagens (HTTP ${res.status})`);
-    }
-
-    const imagens = Array.isArray(d.imagens) ? d.imagens : [];
-    const c = document.getElementById('listaImagens');
-
-    if(!c) return;
-
-    if(!imagens.length){
-      c.innerHTML =
-        '<p style="grid-column:1/-1;text-align:center;color:#64748b;padding:25px;">Nenhuma foto cadastrada.</p>';
-      return;
-    }
-
-    c.innerHTML = imagens.map(img => {
-      const imagemId = Number(img?.id);
-
-      if(!Number.isInteger(imagemId) || imagemId <= 0){
-        console.warn('[MÍDIA] Imagem ignorada: ID inválido.', img);
-        return '';
-      }
-
-      const arquivo = typeof img?.arquivo === 'string'
-        ? img.arquivo.trim()
-        : '';
-
-      const urlExterna = typeof img?.url_externa === 'string'
-        ? img.url_externa.trim()
-        : '';
-
-      /*
-       * Prioridade:
-       * 1. arquivo local, quando existir;
-       * 2. URL externa, quando existir;
-       * 3. placeholder textual, quando não houver mídia válida.
-       */
-      let mediaUrl = '';
-
-      if(arquivo){
-        mediaUrl = arquivo;
-      }else if(/^https?:\/\//i.test(urlExterna)){
-        mediaUrl = urlExterna;
-      }
-
-      const imagemHtml = mediaUrl
-        ? `<img src="${escapeAttr(mediaUrl)}"
-                alt="Foto do imóvel"
-                loading="lazy"
-                onerror="this.style.opacity='.3';this.title='Imagem indisponível';">`
-        : `<div style="display:flex;align-items:center;justify-content:center;min-height:180px;color:#64748b;background:#f1f5f9;border-radius:8px;">
-             Imagem indisponível
-           </div>`;
-
-      const principalHtml = img.principal
-        ? '<span class="main-badge">⭐ Principal</span>'
-        : `<button
-             type="button"
-             class="btn btn-light btn-compact"
-             onclick="definirImagemPrincipal(${imovelId},${imagemId})">
-             ⭐ Principal
-           </button>`;
-
-      const excluirHtml = `
-        <button
-          type="button"
-          class="btn btn-danger btn-compact"
-          onclick="deletarImagem(${imovelId},${imagemId})">
-          🗑️ Excluir
-        </button>`;
-
-      return `
-        <div class="media-card ${img.principal ? 'is-main' : ''}">
-          ${imagemHtml}
-
-          <div class="media-card-actions">
-            ${principalHtml}
-            ${excluirHtml}
-          </div>
+    const res=await apiFetch(`${API_BASE}/imoveis/${id}/imagens`);
+    const d=await res.json();
+    const imagens=d.imagens||[];
+    const c=document.getElementById('listaImagens');
+    c.innerHTML=imagens.length?imagens.map(img=>
+      `<div class="media-card ${img.principal?'is-main':''}">
+        <img src="${escapeAttr(img.arquivo||img.url_externa)}" alt="Foto do imóvel" onerror="this.style.opacity=.3">
+        <div class="media-card-actions">
+          ${img.principal?'<span class="main-badge">⭐ Principal</span>':'<button class="btn btn-light btn-compact" onclick="definirImagemPrincipal('+id+','+img.id+')">⭐ Principal</button>'}
+          <button class="btn btn-danger btn-compact" onclick="deletarImagem(${id},${img.id},decodeURIComponent('${encodeURIComponent(img.arquivo||'')}'),decodeURIComponent('${encodeURIComponent(img.url_externa||'')}'))">🗑️ Excluir</button>
         </div>
-      `;
-    }).join('');
-
-  }catch(e){
-    console.error('[MÍDIA] Erro ao carregar imagens:', e);
-
-    const c = document.getElementById('listaImagens');
-
-    if(c){
-      c.innerHTML =
-        '<p style="grid-column:1/-1;text-align:center;color:#dc2626;padding:25px;">❌ Não foi possível carregar as imagens.</p>';
-    }
-  }
+      </div>`).join(''):
+      '<p style="grid-column:1/-1;text-align:center;color:#64748b;padding:25px;">Nenhuma foto cadastrada.</p>';
+  }catch(e){console.error(e);}
 }
 
 async function carregarListaVideos(id){
@@ -476,35 +418,11 @@ async function enviarFotosModal(){
   try{
     const files=Array.from(input.files);
     msg.className='form-message info';msg.textContent=`⏳ Enviando ${files.length} foto(s)...`;
-    const useDirect = Boolean(mediaConfig.uploadDiretoBlob);
-    if(useDirect){
-      try{
-        for(let i=0;i<files.length;i++){
-          const f=files[i];
-          msg.textContent=`⏳ Enviando foto ${i+1}/${files.length}...`;
-          const blob=await uploadArquivoDiretoBlob(f,'imagens',p=>{msg.textContent=`⏳ Enviando foto ${i+1}/${files.length}: ${p}%`;});
-          const reg=await apiFetch(`${API_BASE}/imoveis/${imovelAtualGerenciandoImagens}/imagens/blob`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({arquivo:blob.url})});
-          const rd=await reg.json();if(!reg.ok)throw new Error(rd.erro||'Falha ao registrar foto');
-        }
-      }catch(blobErr){
-        // Em ambiente local sem Blob, mantém o fluxo tradicional, uma foto por requisição.
-        if(location.hostname.includes('vercel.app') || files.some(f=>f.size>4.5*1024*1024)) throw blobErr;
-        for(let i=0;i<files.length;i++){
-          const f=files[i];
-          msg.textContent=`⏳ Enviando foto ${i+1}/${files.length}...`;
-          const fd=new FormData();fd.append('imagens',f);
-          const res=await apiFetch(`${API_BASE}/imoveis/${imovelAtualGerenciandoImagens}/fotos`,{method:'POST',body:fd});
-          const d=await res.json();if(!res.ok)throw new Error(`Foto ${i+1} falhou: ${d.erro||'Falha no upload'}`);
-        }
-      }
-    }else{
-      for(let i=0;i<files.length;i++){
-        const f=files[i];
-        msg.textContent=`⏳ Enviando foto ${i+1}/${files.length}...`;
-        const fd=new FormData();fd.append('imagens',f);
-        const res=await apiFetch(`${API_BASE}/imoveis/${imovelAtualGerenciandoImagens}/fotos`,{method:'POST',body:fd});
-        const d=await res.json();if(!res.ok)throw new Error(`Foto ${i+1} falhou: ${d.erro||'Falha no upload'}`);
-      }
+    for(let i=0;i<files.length;i++){
+      const fd=new FormData(); fd.append('imagens',files[i]);
+      msg.textContent=`⏳ Enviando foto ${i+1}/${files.length}...`;
+      const res=await apiFetch(`${API_BASE}/imoveis/${imovelAtualGerenciandoImagens}/fotos`,{method:'POST',body:fd});
+      const d=await res.json(); if(!res.ok) throw new Error(d.erro||'Falha no upload');
     }
     input.value='';await carregarListaImagens(imovelAtualGerenciandoImagens);
     msg.className='form-message success';msg.textContent='✅ Fotos enviadas com sucesso!';
@@ -512,8 +430,14 @@ async function enviarFotosModal(){
 }
 
 async function adicionarImagem(){
-  const url=document.getElementById('urlNovaImagem').value.trim(),msg=document.getElementById('msgImagens');
-  if(!url||!imovelAtualGerenciandoImagens){msg.className='form-message error';msg.textContent='❌ Informe uma URL e selecione um imóvel.';return;}
+  let url=document.getElementById('urlNovaImagem').value.trim(),msg=document.getElementById('msgImagens');
+  if(!url||!imovelAtualGerenciandoImagens){msg.className='form-message error';msg.textContent='❌ Informe uma URL de imagem e selecione um imóvel.';return;}
+  if(url.startsWith('//')) url='https:'+url;
+  if(!/^https?:\/\//i.test(url)){
+    msg.className='form-message error';
+    msg.textContent='❌ Informe uma URL completa de imagem, começando com https:// ou http://';
+    return;
+  }
   try{
     const res=await apiFetch(`${API_BASE}/imoveis/${imovelAtualGerenciandoImagens}/imagens`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url_externa:url})});
     const d=await res.json();if(!res.ok)throw new Error(d.erro||'Falha');
@@ -530,19 +454,11 @@ async function enviarVideosModal(){
   try{
     const files=Array.from(input.files);
     msg.className='form-message info';msg.textContent=`⏳ Enviando ${files.length} vídeo(s)...`;
-    try{
-      for(let i=0;i<files.length;i++){
-        const f=files[i];
-        msg.textContent=`⏳ Enviando vídeo ${i+1}/${files.length}...`;
-        const blob=await uploadArquivoDiretoBlob(f,'videos',p=>{msg.textContent=`⏳ Enviando vídeo ${i+1}/${files.length}: ${p}%`;});
-        const reg=await apiFetch(`${API_BASE}/imoveis/${imovelAtualGerenciandoImagens}/videos/blob`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({arquivo:blob.url})});
-        const rd=await reg.json();if(!reg.ok)throw new Error(rd.erro||'Falha ao registrar vídeo');
-      }
-    }catch(blobErr){
-      if(location.hostname.includes('vercel.app')) throw blobErr;
-      const fd=new FormData();files.forEach(f=>fd.append('videos',f));
+    for(let i=0;i<files.length;i++){
+      const fd=new FormData(); fd.append('videos',files[i]);
+      msg.textContent=`⏳ Enviando vídeo ${i+1}/${files.length}...`;
       const res=await apiFetch(`${API_BASE}/imoveis/${imovelAtualGerenciandoImagens}/videos`,{method:'POST',body:fd});
-      const d=await res.json();if(!res.ok)throw new Error(d.erro||'Falha no upload');
+      const d=await res.json(); if(!res.ok) throw new Error(d.erro||'Falha no upload');
     }
     input.value='';await carregarListaVideos(imovelAtualGerenciandoImagens);
     msg.className='form-message success';msg.textContent='✅ Vídeos enviados com sucesso!';
@@ -550,16 +466,45 @@ async function enviarVideosModal(){
 }
 
 async function adicionarVideoUrl(){
-  const url=document.getElementById('urlNovoVideo').value.trim(),msg=document.getElementById('msgImagens');
-  if(!url||!imovelAtualGerenciandoImagens){msg.className='form-message error';msg.textContent='❌ Informe a URL do vídeo e selecione um imóvel.';return;}
+  const input=document.getElementById('urlNovoVideo');
+  const url=String(input?.value||'').trim();
+  const msg=document.getElementById('msgImagens');
+  if(!url||!imovelAtualGerenciandoImagens){
+    msg.className='form-message error';
+    msg.textContent='❌ Informe a URL do vídeo e selecione um imóvel.';
+    return;
+  }
+  if(!/^https?:\/\//i.test(url)){
+    msg.className='form-message error';
+    msg.textContent='❌ A URL do vídeo precisa começar com http:// ou https://';
+    return;
+  }
+  const ehVideo=/(youtube\.com|youtu\.be|vimeo\.com|player\.vimeo\.com|\.(mp4|webm|ogg|mov)(?:[?#].*)?$)/i.test(url);
+  if(!ehVideo){
+    msg.className='form-message error';
+    msg.textContent='❌ Use uma URL do YouTube, Vimeo ou de um vídeo MP4, WebM, OGG ou MOV.';
+    return;
+  }
   try{
+    msg.className='form-message info';
+    msg.textContent='⏳ Adicionando vídeo...';
     const res=await apiFetch(`${API_BASE}/imoveis/${imovelAtualGerenciandoImagens}/videos/url`,{
-      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({url})
     });
-    const d=await res.json();if(!res.ok)throw new Error(d.erro||'Falha');
-    document.getElementById('urlNovoVideo').value='';await carregarListaVideos(imovelAtualGerenciandoImagens);
-    msg.className='form-message success';msg.textContent='✅ Vídeo adicionado por URL!';
-  }catch(e){if(e.message!=='UNAUTHORIZED'){msg.className='form-message error';msg.textContent='❌ '+e.message;}}
+    const d=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(d.erro||'Não foi possível adicionar o vídeo.');
+    input.value='';
+    await carregarListaVideos(imovelAtualGerenciandoImagens);
+    msg.className='form-message success';
+    msg.textContent='✅ Vídeo adicionado por URL com sucesso!';
+  }catch(e){
+    if(e.message!=='UNAUTHORIZED'){
+      msg.className='form-message error';
+      msg.textContent='❌ '+e.message;
+    }
+  }
 }
 
 async function definirImagemPrincipal(imovelId,imagemId){
@@ -571,18 +516,23 @@ async function definirImagemPrincipal(imovelId,imagemId){
   }catch(e){if(e.message!=='UNAUTHORIZED')alert(e.message);}
 }
 
-async function deletarImagem(imovelId,imagemId){
+async function deletarImagem(imovelId,imagemId,arquivo='',urlExterna=''){
   if(!confirm('Excluir esta foto do imóvel? Esta ação não pode ser desfeita.'))return;
   try{
-    const res=await apiFetch(`${API_BASE}/imoveis/${imovelId}/imagens/${imagemId}/excluir`,{method:'POST'});
+    const res=await apiFetch(`${API_BASE}/imoveis/${imovelId}/imagens/${imagemId}/excluir`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({arquivo:arquivo||'',url_externa:urlExterna||''})
+    });
     const d=await res.json();
-    if(!res.ok)throw new Error(d.erro||`Falha ao excluir foto (HTTP ${res.status})`);
+    if(!res.ok)throw new Error(d.erro||'Falha ao excluir foto');
     await carregarListaImagens(imovelId);
     if(imovelEditandoId===imovelId)await carregarPreviewExistentes(imovelId);
     const msg=document.getElementById('msgImagens');
     if(msg){msg.className='form-message success';msg.textContent='✅ '+(d.mensagem||'Foto excluída com sucesso.');}
   }catch(e){if(e.message!=='UNAUTHORIZED')alert(e.message);}
 }
+
 
 async function deletarVideo(imovelId,videoId){
   if(!confirm('Excluir este vídeo do imóvel?'))return;
@@ -593,29 +543,20 @@ async function deletarVideo(imovelId,videoId){
   }catch(e){if(e.message!=='UNAUTHORIZED')alert(e.message);}
 }
 
-async function alterarSenha(event){
-  event?.preventDefault();
-  const form=document.getElementById('formAlterarSenha');
-  const msg=document.getElementById('msgAlterarSenha');
-  if(!form||!msg)return;
-  const senhaAtual=document.getElementById('senhaAtual')?.value||'';
-  const novaSenha=document.getElementById('novaSenha')?.value||'';
-  const confirmarSenha=document.getElementById('confirmarSenha')?.value||'';
-  msg.textContent='';msg.style.color='';
-  if(novaSenha.length<12){msg.style.color='#b91c1c';msg.textContent='❌ A nova senha deve ter pelo menos 12 caracteres.';return;}
-  if(novaSenha!==confirmarSenha){msg.style.color='#b91c1c';msg.textContent='❌ A confirmação da nova senha não coincide.';return;}
-  try{
-    const res=await apiFetch(`${API_BASE}/auth/change-password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({senhaAtual,novaSenha,confirmarSenha})});
-    const data=await res.json().catch(()=>({}));
-    if(!res.ok){msg.style.color='#b91c1c';msg.textContent='❌ '+(data.erro||'Não foi possível alterar a senha.');return;}
-    form.reset();msg.style.color='#15803d';msg.textContent='✅ Senha alterada com sucesso. Você já pode continuar usando o painel.';
-  }catch(err){if(err.message!=='UNAUTHORIZED'){msg.style.color='#b91c1c';msg.textContent='❌ Erro ao alterar a senha. Tente novamente.';}}
-}
-
 async function logout(){try{await fetch(`${API_BASE}/logout`,{method:'POST',credentials:'same-origin'});}finally{window.location.href='/?login=1';}}
 
 document.getElementById('modalImagens')?.addEventListener('click',e=>{if(e.target.id==='modalImagens')fecharModalImagens();});
 document.getElementById('modalLead')?.addEventListener('click',e=>{if(e.target.id==='modalLead')fecharModalLead();});
 document.getElementById('fotosImovel')?.addEventListener('change',function(){const grid=document.getElementById('previewFotos');if(!grid)return;Array.from(this.files||[]).forEach(file=>{if(!file.type.startsWith('image/'))return;const reader=new FileReader();reader.onload=e=>{const item=document.createElement('div');item.className='photo-preview';item.innerHTML=`<img src="${e.target.result}" alt="Pré-visualização"><span>${escapeHtml(file.name)}</span>`;grid.appendChild(item);};reader.readAsDataURL(file);});});
 
-document.addEventListener('DOMContentLoaded',async()=>{atualizarData();await carregarConfiguracaoMidia();document.getElementById('formAlterarSenha')?.addEventListener('submit',alterarSenha);const ok=await validarSessaoInicial();if(ok)carregarDashboard();});
+document.addEventListener('DOMContentLoaded',()=>{atualizarData();validarSessaoInicial().then(ok=>{if(ok)carregarDashboard();});});
+
+function criarAcoesExportacao() {
+  const target = document.querySelector('#inicio .section-header, #inicio h2, #inicio .page-title');
+  if (!target || document.getElementById('v8-export-actions')) return;
+  const box = document.createElement('div'); box.id='v8-export-actions';
+  box.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin:12px 0';
+  box.innerHTML='<a class="btn-secondary" href="/api/admin/leads/export.csv">Exportar leads CSV</a><a class="btn-secondary" href="/api/admin/imoveis/export.json">Exportar imóveis JSON</a>';
+  target.parentElement?.insertBefore(box,target.nextSibling);
+}
+document.addEventListener('DOMContentLoaded', criarAcoesExportacao);

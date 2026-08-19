@@ -261,16 +261,50 @@ body {
 
 .redes-sociais {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 15px;
 }
 
 .rede-icon {
-  padding: 10px 20px;
+  min-height: 44px;
+  padding: 10px 16px;
   border-radius: 5px;
   text-decoration: none;
   font-weight: bold;
   transition: 0.3s;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+}
+
+.rede-icon:focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 3px;
+}
+
+.rede-icon__svg {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  fill: currentColor;
+}
+
+.rede-icon.youtube {
+  background: #ff0000;
+  color: #fff;
+}
+
+.rede-icon.youtube.is-disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.rede-icon.youtube.is-disabled:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 .rede-icon.instagram {
@@ -286,11 +320,6 @@ body {
 .rede-icon.whatsapp {
   background: white;
   color: #25d366;
-}
-
-.rede-icon.youtube {
-  background: #ff0000;
-  color: white;
 }
 
 .rede-icon:hover {
@@ -1223,16 +1252,21 @@ button.close-imagem {
 html, body { max-width: 100%; overflow-x: hidden; }
 img, video, iframe { max-width: 100%; }
 
+/* V8 Premium — autenticação e acessibilidade */
+.auth-page{min-height:100vh;display:grid;place-items:center;padding:24px;background:linear-gradient(135deg,#f8fafc,#eef2ff)}
+.auth-card{width:min(100%,460px);background:#fff;border:1px solid #e2e8f0;border-radius:22px;padding:32px;box-shadow:0 24px 70px rgba(15,23,42,.12)}
+.auth-card h1{margin:12px 0 8px}.auth-card p{color:#64748b;margin-bottom:22px}.auth-card label{display:block;font-weight:700;margin:14px 0 6px}.auth-card input{width:100%;padding:13px 14px;border:1px solid #cbd5e1;border-radius:12px;font:inherit}.auth-card .btn-primary{width:100%;margin-top:18px;padding:13px;border:0;border-radius:12px;cursor:pointer}.auth-card .btn-primary:disabled{opacity:.6;cursor:wait}.back-link{font-weight:700;text-decoration:none}
 
-/* Características adicionais dos imóveis */
-.imovel-caracteristicas-avancadas { display:flex; flex-wrap:wrap; gap:7px; margin-top:10px; }
-.imovel-feature { display:inline-flex; align-items:center; padding:6px 9px; border:1px solid #dbe4f0; border-radius:999px; background:#f8fafc; color:#334155; font-size:12px; line-height:1.2; }
-.imovel-feature-more { background:#eef3ff; color:#2457df; font-weight:700; }
-.detalhes-container .imovel-caracteristicas-avancadas { margin:14px 0 4px; }
 
-/* V7.0.2.1 — ações WhatsApp contextualizadas na página do imóvel */
-.property-whatsapp-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
-.property-whatsapp-actions a{min-height:44px}
-.btn-whatsapp-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 14px;border:1px solid #25d366;background:#f0fff6;color:#137a45;border-radius:10px;text-decoration:none;font-weight:700}
-.btn-whatsapp-secondary:hover{background:#e0ffec}
-@media(max-width:700px){.property-whatsapp-actions{display:grid;grid-template-columns:1fr}.property-whatsapp-actions a{width:100%}}
+/* Redes sociais: quatro ações sem overflow em telas estreitas. */
+@media (max-width: 520px) {
+  .redes-sociais {
+    gap: 10px;
+  }
+
+  .rede-icon {
+    flex: 1 1 calc(50% - 10px);
+    min-width: 0;
+    padding-inline: 12px;
+  }
+}

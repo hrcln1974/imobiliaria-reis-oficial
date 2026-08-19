@@ -8,7 +8,7 @@
   <meta name="keywords" content="imobiliária, corretor de imóveis, CRECI-RJ, compra de imóvel, venda de imóvel, aluguel">
   <meta name="author" content="Fabiano Reis de Araújo">
   <meta name="robots" content="index, follow">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#0f2f3d">
   <link rel="canonical" href="https://fabianoreisimoveis.com.br/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Fabiano Reis Imóveis">
@@ -20,9 +20,14 @@
   <meta name="twitter:title" content="Fabiano Reis Imóveis | Compra, Venda e Aluguel">
   <meta name="twitter:description" content="Corretor imobiliário CRECI-RJ 93.426. Atendimento personalizado para compra, venda e aluguel de imóveis.">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Manrope:wght@400;600;700;800&display=swap" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="ui.css">
+  <link rel="stylesheet" href="premium.css">
 </head>
-<body>
+<body class="fr-page">
   <a class="skip-link" href="#imoveis">Ir para os imóveis</a>
 
   <!-- NAVBAR -->
@@ -41,13 +46,60 @@
     </div>
   </nav>
 
-  <!-- BANNER PRINCIPAL -->
-  <section id="inicio" class="banner">
+  <!-- BANNER PRINCIPAL — referência visual do projeto original, sem crop -->
+  <section id="inicio" class="banner fr-banner-premium" aria-labelledby="hero-title">
     <img src="/uploads/imagens/banner-alto-padrao.png"
-         alt="Casa de alto padrão — Imobiliária Fabiano Reis"
+         alt="Imobiliária Fabiano Reis — imóveis de alto padrão"
          class="banner-img" fetchpriority="high" decoding="async"
+         width="1983" height="793"
          onerror="this.onerror=null;this.src='/img/placeholder.svg';">
-    <h1 class="sr-only">Fabiano Reis Imóveis — compra, venda e aluguel de imóveis (CRECI-RJ 93.426)</h1>
+    <h1 id="hero-title" class="sr-only">Fabiano Reis Imóveis — compra, venda e aluguel de imóveis (CRECI-RJ 93.426)</h1>
+  </section>
+
+  <!-- AÇÕES E BUSCA — mantidas da V11, fora da imagem para preservar nitidez -->
+  <section class="fr-hero-tools" aria-label="Ações rápidas e busca de imóveis">
+    <div class="fr-container">
+      <div class="fr-hero-tools__intro">
+        <div>
+          <span class="fr-hero-tools__eyebrow">CRECI-RJ 93.426</span>
+          <h2>O imóvel certo, com acompanhamento de quem entende do assunto</h2>
+          <p>Compra, venda e locação com atendimento pessoal de Fabiano Reis. Cada imóvel do site é real, visitado e documentado.</p>
+        </div>
+        <div class="fr-hero__ctas">
+          <a class="fr-btn fr-btn-gold" href="#imoveis">Ver imóveis disponíveis</a>
+          <a class="fr-btn fr-btn-whats" target="_blank" rel="noopener noreferrer" href="https://wa.me/5521991822134?text=Ol%C3%A1%20Fabiano%2C%20vim%20pelo%20site%20e%20gostaria%20de%20mais%20informa%C3%A7%C3%B5es.">Falar no WhatsApp</a>
+          <button type="button" class="fr-btn fr-btn-primary" onclick="abrirFormularioInteresse()">Quero ser atendido</button>
+        </div>
+      </div>
+
+      <form class="fr-search" id="buscaRapida" role="search" aria-label="Busca rápida de imóveis">
+        <div class="fr-search__grid">
+          <div class="fr-field">
+            <label for="searchOperacao">Operação</label>
+            <select id="searchOperacao" name="operacao">
+              <option value="">Todas</option><option value="venda">Venda</option><option value="aluguel">Aluguel</option>
+            </select>
+          </div>
+          <div class="fr-field">
+            <label for="searchTipo">Tipo</label>
+            <select id="searchTipo" name="tipo">
+              <option value="">Todos</option><option value="casa">Casa</option><option value="apartamento">Apartamento</option><option value="cobertura">Cobertura</option><option value="sobrado">Sobrado</option><option value="kitnet">Kitnet</option><option value="terreno">Terreno</option><option value="comercial">Comercial</option><option value="galpao">Galpão</option><option value="sitio">Sítio</option><option value="chacara">Chácara</option><option value="outro">Outro</option>
+            </select>
+          </div>
+          <div class="fr-field">
+            <label for="searchCidade">Cidade</label>
+            <input type="text" id="searchCidade" name="cidade" placeholder="Ex.: Rio de Janeiro" autocomplete="address-level2">
+          </div>
+          <div class="fr-field">
+            <label for="precoMax">Preço máximo</label>
+            <input type="number" id="precoMax" name="preco_max" min="0" step="1000" placeholder="R$">
+          </div>
+          <div class="fr-field" style="justify-content:flex-end;">
+            <button type="submit" class="fr-btn fr-btn-primary fr-btn-block">Buscar imóveis</button>
+          </div>
+        </div>
+      </form>
+    </div>
   </section>
 
   <!-- APRESENTAÇÃO DO CORRETOR -->
@@ -61,8 +113,6 @@
           <h2>Fabiano Reis de Araújo</h2>
           <p class="creci">🏆 CRECI-RJ 93.426</p>
           <p class="descricao">"Não é sobre imóveis, é sobre pessoas. Ajudar você a realizar seu sonho é minha missão."</p>
-          
-
 
           <div class="horario">
             <p><strong>📅 Horário de Atendimento:</strong> Segunda a Sábado, 8:00 - 16:00</p>
@@ -70,32 +120,102 @@
           </div>
 
           <div class="redes-sociais">
-            <a href="https://www.instagram.com/fabianoreiscorretor" target="_blank" class="rede-icon instagram">Instagram</a>
-            <a href="https://www.facebook.com/share/14n16MN3h15/" target="_blank" class="rede-icon facebook">Facebook</a>
+            <a href="https://www.instagram.com/fabianoreiscorretor" target="_blank" rel="noopener noreferrer" class="rede-icon instagram">Instagram</a>
+            <a href="https://www.facebook.com/share/14n16MN3h15/" target="_blank" rel="noopener noreferrer" class="rede-icon facebook">Facebook</a>
+            <a href="#" class="rede-icon youtube" data-youtube-link aria-label="YouTube — URL não configurada" aria-disabled="true" title="YouTube — URL não configurada">
+              <svg class="rede-icon__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8ZM9.6 15.6V8.4l6.2 3.6-6.2 3.6Z"/>
+              </svg>
+              <span>YouTube</span>
+            </a>
             <a href="https://wa.me/5521991822134" target="_blank" rel="noopener noreferrer" class="rede-icon whatsapp">WhatsApp</a>
-            <a href="https://www.youtube.com/@FabianoReis-o5i" target="_blank" rel="noopener noreferrer" class="rede-icon youtube" aria-label="YouTube - Canal oficial Fabiano Reis">YouTube</a>                
           </div>
         </div>
       </div>
     </div>
   </section>
 
- 
+  <!-- FILTROS AVANÇADOS -->
+  <section class="fr-filtros" aria-labelledby="titulo-filtros">
+    <div class="fr-container">
+      <h2 id="titulo-filtros" class="fr-h2">Encontre seu imóvel</h2>
+      <p class="fr-lead" style="margin:8px 0 18px;">Filtre pelo que realmente importa para você. Todos os resultados vêm da carteira real de imóveis.</p>
+      <form id="formFiltros">
+        <div class="fr-search__grid">
+          <div class="fr-field">
+            <label for="filtroBairro">Bairro</label>
+            <input type="text" id="filtroBairro" name="bairro" placeholder="Ex.: Copacabana">
+          </div>
+          <div class="fr-field">
+            <label for="filtroPrecoMin">Preço mínimo</label>
+            <input type="number" id="filtroPrecoMin" name="preco_min" min="0" step="1000" placeholder="R$">
+          </div>
+          <div class="fr-field">
+            <label for="filtroQuartos">Quartos (mín.)</label>
+            <select id="filtroQuartos" name="quartos">
+              <option value="">Indiferente</option>
+              <option value="1">1+</option><option value="2">2+</option>
+              <option value="3">3+</option><option value="4">4+</option>
+            </select>
+          </div>
+          <div class="fr-field">
+            <label for="filtroBanheiros">Banheiros (mín.)</label>
+            <select id="filtroBanheiros" name="banheiros">
+              <option value="">Indiferente</option>
+              <option value="1">1+</option><option value="2">2+</option><option value="3">3+</option>
+            </select>
+          </div>
+          <div class="fr-field">
+            <label for="filtroGaragem">Vagas (mín.)</label>
+            <select id="filtroGaragem" name="garagem">
+              <option value="">Indiferente</option>
+              <option value="1">1+</option><option value="2">2+</option><option value="3">3+</option>
+            </select>
+          </div>
+          <div class="fr-field">
+            <label for="filtroAreaMin">Área mínima (m²)</label>
+            <input type="number" id="filtroAreaMin" name="area_min" min="0" step="1" placeholder="m²">
+          </div>
+          <div class="fr-field">
+            <label for="filtroDestaque">Somente destaques</label>
+            <select id="filtroDestaque" name="destaque">
+              <option value="">Não</option>
+              <option value="1">Sim</option>
+            </select>
+          </div>
+        </div>
+        <div class="fr-filtros__acoes">
+          <button type="submit" class="fr-btn fr-btn-primary">Buscar</button>
+          <button type="button" class="fr-btn fr-btn-ghost" onclick="limparFiltros()">Limpar filtros</button>
+          <span class="fr-filtros__contador" id="contadorResultados" role="status" aria-live="polite"></span>
+        </div>
+      </form>
+    </div>
+  </section>
 
-  <!-- IMÓVEIS DESTAQUE -->
+  <!-- IMÓVEIS -->
   <section id="imoveis" class="imoveis-section">
-    <div class="container">
-      <h2>Imóveis em Destaque</h2>
-      <div id="imoveis-container" class="imoveis-grid">
+    <div class="fr-container">
+      <h2 class="fr-h2">Imóveis em destaque</h2>
+      <p class="fr-lead" style="margin:8px 0 24px;">Fotos, valores e características cadastrados diretamente pelo corretor.</p>
+      <div id="imoveis-container" class="fr-grid">
         <!-- Carregado por JS -->
       </div>
+    </div>
+  </section>
+
+  <!-- DEPOIMENTOS (exibido apenas quando houver depoimentos reais cadastrados) -->
+  <section id="depoimentos" class="fr-filtros" hidden aria-labelledby="titulo-depoimentos">
+    <div class="fr-container">
+      <h2 id="titulo-depoimentos" class="fr-h2">O que dizem os clientes</h2>
+      <div id="depoimentos-container" class="fr-grid" style="margin-top:20px;"></div>
     </div>
   </section>
 
   <!-- MODAL DE IMAGEM AMPLIADA -->
   <div id="imagemModal" class="modal-imagem">
     <button type="button" class="close-imagem" onclick="fecharImagemModal()" aria-label="Fechar imagem">&times;</button>
-    <img id="imagemAmpliada" src="" alt="Imagem ampliada">
+    <img id="imagemAmpliada" src="" alt="Imagem ampliada do imóvel">
     <div id="infoImagem" class="info-imagem"></div>
   </div>
 
@@ -106,24 +226,118 @@
     <div id="infoVideo" class="info-imagem"></div>
   </div>
 
-  <!-- CONTATO (MOVIDO PARA AQUI) -->
-  <section id="contato" class="contato-section">
-    <div class="container">
-      <h2>Entre em Contato</h2>
-      <form id="formContato" class="form-contato">
-        <label class="sr-only" for="nomeLead">Nome</label>
-        <input type="text" id="nomeLead" name="nome" autocomplete="name" placeholder="Seu Nome" required>
-        <label class="sr-only" for="emailLead">E-mail</label>
-        <input type="email" id="emailLead" name="email" autocomplete="email" placeholder="Seu Email" required>
-        <label class="sr-only" for="telefoneLead">Telefone</label>
-        <input type="tel" id="telefoneLead" name="telefone" autocomplete="tel" placeholder="Seu Telefone" required>
-        <label class="sr-only" for="whatsappLead">WhatsApp (opcional)</label>
-        <input type="tel" id="whatsappLead" name="whatsapp" placeholder="WhatsApp (opcional)">
-        <label class="sr-only" for="mensagemLead">Mensagem</label>
-        <textarea id="mensagemLead" name="mensagem" placeholder="Sua Mensagem" rows="5" required></textarea>
-        <button type="submit" class="btn-primary">Enviar mensagem</button>
+  <!-- MODAL DE INTERESSE -->
+  <div id="modalInteresse" class="fr-modal" role="dialog" aria-modal="true" aria-labelledby="tituloInteresse">
+    <div class="fr-modal__box">
+      <div class="fr-modal__head">
+        <div>
+          <h2 id="tituloInteresse" class="fr-h3">Tenho interesse</h2>
+          <p class="fr-lead" id="subtituloInteresse" style="font-size:.95rem;margin-top:4px;">Preencha os dados e Fabiano entra em contato.</p>
+        </div>
+        <button type="button" class="fr-modal__close" onclick="fecharFormularioInteresse()" aria-label="Fechar formulário">&times;</button>
+      </div>
+      <form id="formInteresse" novalidate>
+        <input type="hidden" id="interesseImovelId" name="imovel_id" value="">
+        <div class="fr-hp" aria-hidden="true">
+          <label for="interesseWebsite">Não preencha</label>
+          <input type="text" id="interesseWebsite" name="website" tabindex="-1" autocomplete="off">
+        </div>
+        <div class="fr-form-grid">
+          <div class="fr-field">
+            <label for="interesseNome">Nome *</label>
+            <input type="text" id="interesseNome" name="nome" autocomplete="name" required minlength="2" maxlength="120">
+            <span class="fr-error" id="erroInteresseNome"></span>
+          </div>
+          <div class="fr-field">
+            <label for="interesseEmail">E-mail *</label>
+            <input type="email" id="interesseEmail" name="email" autocomplete="email" required maxlength="160">
+            <span class="fr-error" id="erroInteresseEmail"></span>
+          </div>
+          <div class="fr-field">
+            <label for="interesseTelefone">Telefone *</label>
+            <input type="tel" id="interesseTelefone" name="telefone" autocomplete="tel" required>
+            <span class="fr-error" id="erroInteresseTelefone"></span>
+          </div>
+          <div class="fr-field">
+            <label for="interesseWhatsapp">WhatsApp</label>
+            <input type="tel" id="interesseWhatsapp" name="whatsapp">
+            <span class="fr-error" id="erroInteresseWhatsapp"></span>
+          </div>
+          <div class="fr-field">
+            <label for="interesseTipo">Tipo de interesse *</label>
+            <select id="interesseTipo" name="tipo_interesse" required>
+              <option value="comprar">Comprar</option>
+              <option value="alugar">Alugar</option>
+              <option value="vender">Vender</option>
+              <option value="avaliar">Avaliar imóvel</option>
+              <option value="outro">Outro</option>
+            </select>
+            <span class="fr-error" id="erroInteresseTipo"></span>
+          </div>
+          <div class="fr-field">
+            <label for="interesseOrcamento">Orçamento estimado</label>
+            <select id="interesseOrcamento" name="orcamento">
+              <option value="">Prefiro não informar</option>
+              <option value="ate-200k">Até R$ 200 mil</option>
+              <option value="200k-400k">R$ 200 mil a R$ 400 mil</option>
+              <option value="400k-700k">R$ 400 mil a R$ 700 mil</option>
+              <option value="700k-1m">R$ 700 mil a R$ 1 milhão</option>
+              <option value="acima-1m">Acima de R$ 1 milhão</option>
+              <option value="aluguel">Interesse em locação</option>
+            </select>
+          </div>
+          <div class="fr-field fr-span-2">
+            <label for="interesseMensagem">Mensagem *</label>
+            <textarea id="interesseMensagem" name="mensagem" required minlength="5" maxlength="2000"></textarea>
+            <span class="fr-error" id="erroInteresseMensagem"></span>
+          </div>
+        </div>
+        <button type="submit" class="fr-btn fr-btn-primary fr-btn-block" style="margin-top:18px;" id="btnEnviarInteresse">Enviar mensagem</button>
+        <p id="msgInteresse" role="status" aria-live="polite"></p>
       </form>
-      <p id="msgContato"></p>
+    </div>
+  </div>
+
+  <!-- CONTATO -->
+  <section id="contato" class="contato-section">
+    <div class="fr-container">
+      <h2 class="fr-h2">Entre em contato</h2>
+      <p class="fr-lead" style="margin:8px 0 20px;">Resposta em horário comercial: segunda a sábado, 8h às 16h.</p>
+      <form id="formContato" class="form-contato" novalidate>
+        <div class="fr-hp" aria-hidden="true">
+          <label for="websiteContato">Não preencha</label>
+          <input type="text" id="websiteContato" name="website" tabindex="-1" autocomplete="off">
+        </div>
+        <div class="fr-form-grid">
+          <div class="fr-field">
+            <label for="nomeLead">Nome *</label>
+            <input type="text" id="nomeLead" name="nome" autocomplete="name" required minlength="2" maxlength="120">
+            <span class="fr-error" id="erroNomeLead"></span>
+          </div>
+          <div class="fr-field">
+            <label for="emailLead">E-mail *</label>
+            <input type="email" id="emailLead" name="email" autocomplete="email" required maxlength="160">
+            <span class="fr-error" id="erroEmailLead"></span>
+          </div>
+          <div class="fr-field">
+            <label for="telefoneLead">Telefone *</label>
+            <input type="tel" id="telefoneLead" name="telefone" autocomplete="tel" required>
+            <span class="fr-error" id="erroTelefoneLead"></span>
+          </div>
+          <div class="fr-field">
+            <label for="whatsappLead">WhatsApp (opcional)</label>
+            <input type="tel" id="whatsappLead" name="whatsapp">
+            <span class="fr-error" id="erroWhatsappLead"></span>
+          </div>
+          <div class="fr-field fr-span-2">
+            <label for="mensagemLead">Mensagem *</label>
+            <textarea id="mensagemLead" name="mensagem" rows="5" required minlength="5" maxlength="2000"></textarea>
+            <span class="fr-error" id="erroMensagemLead"></span>
+          </div>
+        </div>
+        <button type="submit" class="fr-btn fr-btn-primary" style="margin-top:16px;" id="btnEnviarContato">Enviar mensagem</button>
+      </form>
+      <p id="msgContato" role="status" aria-live="polite"></p>
     </div>
   </section>
 
@@ -133,20 +347,20 @@
       <h2>Por que escolher Fabiano Reis?</h2>
       <div class="beneficios">
         <div class="beneficio">
-          <h3>🎯 Experiência</h3>
-          <p>Mais de 2 anos no mercado imobiliário com dezenas de transações bem-sucedidas</p>
+          <h3>🎯 Atuação</h3>
+          <p>Atendimento presencial na região da Travessa Arlindo Carreiro e imóveis cadastrados pessoalmente pelo corretor.</p>
         </div>
         <div class="beneficio">
-          <h3>💼 Profissionalismo</h3>
-          <p>Corretor credenciado CRECI-RJ com total transparência e segurança</p>
+          <h3>💼 Registro profissional</h3>
+          <p>Corretor credenciado CRECI-RJ 93.426, com documentação e negociação conduzidas dentro da lei.</p>
         </div>
         <div class="beneficio">
-          <h3>🤝 Dedicação</h3>
-          <p>Atendimento personalizado focado em seus objetivos e necessidades</p>
+          <h3>🤝 Atendimento direto</h3>
+          <p>Você fala com o corretor responsável, sem intermediários e sem call center.</p>
         </div>
         <div class="beneficio">
-          <h3>📊 Mercado</h3>
-          <p>Conhecimento profundo do mercado imobiliário local e de oportunidades</p>
+          <h3>📅 Disponibilidade</h3>
+          <p>Segunda a sábado, das 8h às 16h, por WhatsApp, telefone ou formulário do site.</p>
         </div>
       </div>
     </div>
@@ -164,23 +378,30 @@
         <input type="password" id="senhaLogin" name="senha" autocomplete="current-password" placeholder="Senha" required>
         <button type="submit" class="btn-primary">Entrar</button>
       </form>
+      <p style="margin-top:10px"><a href="/forgot-password.html" style="color:inherit">Esqueci minha senha</a></p>
       <p id="msgLogin"></p>
     </div>
   </div>
 
-<!-- WHATSAPP FLUTUANTE -->
-<a class="whatsapp-float"
-   href="https://wa.me/5521991822134?text=Ol%C3%A1%20Fabiano%2C%20vim%20pelo%20site%20e%20gostaria%20de%20mais%20informa%C3%A7%C3%B5es."
-   target="_blank" rel="noopener noreferrer" aria-label="Falar com Fabiano pelo WhatsApp">
-  <span class="whatsapp-float-icon">◉</span>
-  <span class="whatsapp-float-text">Fale no WhatsApp</span>
-</a>
+  <!-- WHATSAPP FLUTUANTE -->
+  <a class="whatsapp-float"
+     href="https://wa.me/5521991822134?text=Ol%C3%A1%20Fabiano%2C%20vim%20pelo%20site%20e%20gostaria%20de%20mais%20informa%C3%A7%C3%B5es."
+     target="_blank" rel="noopener noreferrer" aria-label="Falar com Fabiano pelo WhatsApp">
+    <span class="whatsapp-float-icon" aria-hidden="true">◉</span>
+    <span class="whatsapp-float-text">Fale no WhatsApp</span>
+  </a>
 
   <!-- FOOTER -->
   <footer class="footer">
     <div class="container">
       <p>&copy; <span id="ano-atual">2026</span> Fabiano Reis - Corretor Imobiliário. Todos os direitos reservados.</p>
-      <p>CRECI-RJ 93.426 | Desenvolvido com ❤️ para o mercado imobiliário</p>
+      <p>CRECI-RJ 93.426</p>
+      <nav class="fr-footer-links" aria-label="Links institucionais">
+        <a href="/privacidade">Política de Privacidade</a>
+        <a href="/termos">Termos de Uso</a>
+        <a href="/sitemap.xml">Sitemap</a>
+        <a href="#" onclick="mostrarLogin(); return false;">Área do Corretor</a>
+      </nav>
     </div>
   </footer>
 
@@ -193,7 +414,13 @@
     "telephone": "+5521991822134",
     "email": "fabianooficialcorretor@gmail.com",
     "url": "https://fabianoreisimoveis.com.br/",
+    "image": "https://fabianoreisimoveis.com.br/uploads/imagens/foto-corretor-v5.png",
     "address": { "@type": "PostalAddress", "streetAddress": "Travessa Arlindo Carreiro, 451", "addressRegion": "RJ", "addressCountry": "BR" },
+    "openingHoursSpecification": [{
+      "@type": "OpeningHoursSpecification",
+      "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],
+      "opens": "08:00", "closes": "16:00"
+    }],
     "openingHours": "Mo-Sa 08:00-16:00",
     "sameAs": [
       "https://www.instagram.com/fabianoreiscorretor",
