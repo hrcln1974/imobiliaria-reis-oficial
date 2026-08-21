@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>%%TITULO%%</title>
+  <meta name="description" content="%%DESCRICAO%%">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#0f2f3d">
+  <link rel="canonical" href="%%CANONICA%%">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Fabiano Reis Imóveis">
+  <meta property="og:locale" content="pt_BR">
+  <meta property="og:url" content="%%CANONICA%%">
+  <meta property="og:title" content="%%TITULO%%">
+  <meta property="og:description" content="%%DESCRICAO%%">
+  <meta property="og:image" content="%%IMAGEM%%">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="%%TITULO%%">
+  <meta name="twitter:description" content="%%DESCRICAO%%">
+  <meta name="twitter:image" content="%%IMAGEM%%">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Manrope:wght@400;600;700;800&display=swap" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/ui.css">
+  <link rel="stylesheet" href="/premium.css">
+  <script type="application/ld+json">%%JSONLD%%</script>
+</head>
+<body class="fr-page">
+  <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
+
+  <nav class="navbar">
+    <div class="container">
+      <div class="logo"><a href="/" style="color:inherit;text-decoration:none;"><span>Fabiano Reis Imóveis</span></a></div>
+      <ul class="nav-menu">
+        <li><a href="/">Início</a></li>
+        <li><a href="/#imoveis">Imóveis</a></li>
+        <li><a href="/#contato">Contato</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main id="conteudo" class="fr-container">
+    <nav class="fr-breadcrumb" aria-label="Você está aqui">
+      <a href="/">Início</a> <span aria-hidden="true">›</span>
+      <a href="/#imoveis">Imóveis</a> <span aria-hidden="true">›</span>
+      <span id="crumbImovel">Imóvel</span>
+    </nav>
+
+    <div id="conteudoImovel" data-imovel-id="%%IMOVEL_ID%%">
+      <p class="fr-lead">Carregando informações do imóvel...</p>
+    </div>
+  </main>
+
+  <!-- LIGHTBOX -->
+  <div id="lightbox" class="fr-lightbox" role="dialog" aria-modal="true" aria-label="Foto ampliada">
+    <button type="button" class="fr-lightbox__close" onclick="fecharLightbox()" aria-label="Fechar">&times;</button>
+    <button type="button" class="fr-lightbox__nav fr-lightbox__nav--prev" onclick="navegarLightbox(-1)" aria-label="Foto anterior">‹</button>
+    <img id="lightboxImg" src="" alt="">
+    <button type="button" class="fr-lightbox__nav fr-lightbox__nav--next" onclick="navegarLightbox(1)" aria-label="Próxima foto">›</button>
+    <div class="fr-lightbox__legenda" id="lightboxLegenda"></div>
+  </div>
+
+  <!-- MODAL DE INTERESSE -->
+  <div id="modalInteresse" class="fr-modal" role="dialog" aria-modal="true" aria-labelledby="tituloInteresse">
+    <div class="fr-modal__box">
+      <div class="fr-modal__head">
+        <div>
+          <h2 id="tituloInteresse" class="fr-h3">Tenho interesse</h2>
+          <p class="fr-lead" id="subtituloInteresse" style="font-size:.95rem;margin-top:4px;">Preencha os dados e Fabiano entra em contato.</p>
+        </div>
+        <button type="button" class="fr-modal__close" onclick="fecharFormularioInteresse()" aria-label="Fechar formulário">&times;</button>
+      </div>
+      <form id="formInteresse" novalidate>
+        <input type="hidden" id="interesseImovelId" name="imovel_id" value="">
+        <div class="fr-hp" aria-hidden="true">
+          <label for="interesseWebsite">Não preencha</label>
+          <input type="text" id="interesseWebsite" name="website" tabindex="-1" autocomplete="off">
+        </div>
+        <div class="fr-form-grid">
+          <div class="fr-field">
+            <label for="interesseNome">Nome *</label>
+            <input type="text" id="interesseNome" name="nome" autocomplete="name" required minlength="2" maxlength="120">
+            <span class="fr-error" id="erroInteresseNome"></span>
+          </div>
+          <div class="fr-field">
+            <label for="interesseEmail">E-mail *</label>
+            <input type="email" id="interesseEmail" name="email" autocomplete="email" required maxlength="160">
+            <span class="fr-error" id="erroInteresseEmail"></span>
+          </div>
+          <div class="fr-field">
+            <label for="interesseTelefone">Telefone *</label>
+            <input type="tel" id="interesseTelefone" name="telefone" autocomplete="tel" required>
+            <span class="fr-error" id="erroInteresseTelefone"></span>
+          </div>
+          <div class="fr-field">
+            <label for="interesseWhatsapp">WhatsApp</label>
+            <input type="tel" id="interesseWhatsapp" name="whatsapp">
+            <span class="fr-error" id="erroInteresseWhatsapp"></span>
+          </div>
+          <div class="fr-field">
+            <label for="interesseTipo">Tipo de interesse *</label>
+            <select id="interesseTipo" name="tipo_interesse" required>
+              <option value="comprar">Comprar</option>
+              <option value="alugar">Alugar</option>
+              <option value="vender">Vender</option>
+              <option value="avaliar">Avaliar imóvel</option>
+              <option value="outro">Outro</option>
+            </select>
+            <span class="fr-error" id="erroInteresseTipo"></span>
+          </div>
+          <div class="fr-field">
+            <label for="interesseOrcamento">Orçamento estimado</label>
+            <select id="interesseOrcamento" name="orcamento">
+              <option value="">Prefiro não informar</option>
+              <option value="ate-200k">Até R$ 200 mil</option>
+              <option value="200k-400k">R$ 200 mil a R$ 400 mil</option>
+              <option value="400k-700k">R$ 400 mil a R$ 700 mil</option>
+              <option value="700k-1m">R$ 700 mil a R$ 1 milhão</option>
+              <option value="acima-1m">Acima de R$ 1 milhão</option>
+              <option value="aluguel">Interesse em locação</option>
+            </select>
+          </div>
+          <div class="fr-field fr-span-2">
+            <label for="interesseMensagem">Mensagem *</label>
+            <textarea id="interesseMensagem" name="mensagem" required minlength="5" maxlength="2000"></textarea>
+            <span class="fr-error" id="erroInteresseMensagem"></span>
+          </div>
+        </div>
+        <button type="submit" class="fr-btn fr-btn-primary fr-btn-block" style="margin-top:18px;" id="btnEnviarInteresse">Enviar mensagem</button>
+        <p id="msgInteresse" role="status" aria-live="polite"></p>
+      </form>
+    </div>
+  </div>
+
+  <a class="whatsapp-float"
+     href="https://wa.me/5521991822134?text=Ol%C3%A1%20Fabiano%2C%20vim%20pelo%20site%20e%20gostaria%20de%20mais%20informa%C3%A7%C3%B5es."
+     target="_blank" rel="noopener noreferrer" aria-label="Falar com Fabiano pelo WhatsApp">
+    <span class="whatsapp-float-icon" aria-hidden="true">◉</span>
+    <span class="whatsapp-float-text">Fale no WhatsApp</span>
+  </a>
+
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; <span id="ano-atual">2026</span> Fabiano Reis - Corretor Imobiliário. CRECI-RJ 93.426</p><p class="fr-credit-dev">Desenvolvido por <strong>HRCLN DEV</strong></p>
+      <nav class="fr-footer-links" aria-label="Links institucionais">
+        <a href="/privacidade">Política de Privacidade</a>
+        <a href="/termos">Termos de Uso</a>
+        <a href="/#imoveis">Todos os imóveis</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script src="/caracteristicas.js"></script>
+  <script src="/imovel.js"></script>
+</body>
+</html>

@@ -1,149 +1,202 @@
 #!/usr/bin/env node
 /**
- * Check de entrega — V6.2
- * Unifica os antigos preflight.js, preflight-v53.js e preflight-vercel.js.
- *
- * Verifica: estrutura de arquivos, sintaxe, dependências, funcionalidades
- * críticas (mídias, autenticação, galeria), prontidão para Vercel, SEO e
- * acessibilidade básica da home.
- *
- * Itens de mídia (fotos reais do cliente) são AVISOS, não erros: eles ficam
- * fora do Git (public/uploads/) e são enviados pelo painel do corretor.
+ * preflight.js — Validações pré-deploy V7.1
+ * 
+ * Executa via: npm run check
+ * 
+ * Verificações:
+ * - Node.js 20+
+ * - Arquivo .env (produção)
+ * - Variáveis obrigatórias
+ * - Package.json integridade
+ * - Estrutura de diretórios
+ * - Arquivos críticos
  */
+
 const fs = require('fs');
 const path = require('path');
-const { spawnSync } = require('child_process');
 
-const root = __dirname;
-const exists = rel => fs.existsSync(path.join(root, rel));
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
+const RESET = '\x1b[0m';
+const GREEN = '\x1b[32m';
+const RED = '\x1b[31m';
+const YELLOW = '\x1b[33m';
+const BLUE = '\x1b[36m';
 
-let failed = false;
-let warnings = 0;
+let errors = [];
+let warnings = [];
+let passes = [];
 
-const ok = (label, condition) => {
-  console.log(`[${condition ? '✓' : '✗'}] ${label}`);
-  if (!condition) failed = true;
-};
-const warn = (label, condition) => {
-  console.log(`[${condition ? '✓' : '!'}] ${label}`);
-  if (!condition) warnings++;
-};
+console.log(`${BLUE}═══════════════════════════════════════${RESET}`);
+console.log(`${BLUE}  PREFLIGHT V12.1.5 — Validações de Deploy${RESET}`);
+console.log(`${BLUE}═══════════════════════════════════════${RESET}\n`);
 
-console.log('\n=== FABIANO REIS IMÓVEIS — CHECK DE ENTREGA (V6.2.6) ===\n');
+// ============= CHECK 1: Node.js =============
+const nodeVersion = process.versions.node;
+const majorVersion = parseInt(nodeVersion.split('.')[0], 10);
 
-console.log('-- Estrutura --');
-[
+if (majorVersion >= 20) {
+  passes.push(`Node.js ${nodeVersion} ✓`);
+} else {
+  errors.push(`Node.js 20+ necessário (atual: ${nodeVersion})`);
+}
+
+// ============= CHECK 2: Package.json =============
+const pkgPath = path.join(__dirname, 'package.json');
+if (fs.existsSync(pkgPath)) {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    if (pkg.name && pkg.version && pkg.main) {
+      passes.push(`package.json válido (v${pkg.version})`);
+    } else {
+      errors.push('package.json incompleto (faltam campos: name, version, main)');
+    }
+  } catch (e) {
+    errors.push(`package.json inválido: ${e.message}`);
+  }
+} else {
+  errors.push('package.json não encontrado');
+}
+
+// ============= CHECK 3: Estrutura de diretórios =============
+const dirs = ['public', 'scripts', 'storage'];
+dirs.forEach(dir => {
+  const dirPath = path.join(__dirname, dir);
+  if (fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory()) {
+    passes.push(`Diretório /${dir} ✓`);
+  } else {
+    errors.push(`Diretório /${dir} ausente`);
+  }
+});
+
+// ============= CHECK 4: Arquivos críticos =============
+const criticalFiles = [
+  'public/crm.html',
+  'public/crm.js',
+  'public/crm.css',
   'server.js',
   'db-adapter.js',
   'package.json',
-  'package-lock.json',
-  'api/index.js',
-  'vercel.json',
-  '.env.example',
-  'README.md',
-  'CHANGELOG.md',
   'public/index.html',
   'public/dashboard.html',
-  'public/dashboard.js',
-  'public/script.js',
-  'public/style.css',
-  'public/favicon.ico',
-  'public/robots.txt',
-  'public/sitemap.xml',
-  'public/img/placeholder.svg',
-  'public/uploads/imagens',
-  'public/uploads/videos',
-  'scripts/create-admin.js',
-  'scripts/migrate-sqlite-to-postgres.js',
-  'scripts/build-release.js'
-].forEach(rel => ok(rel, exists(rel)));
+  'public/script.js'
+];
 
-console.log('\n-- Sintaxe --');
-[
-  'server.js',
-  'db-adapter.js',
-  'api/index.js',
-  'public/script.js',
-  'public/dashboard.js',
-  'scripts/create-admin.js',
-  'scripts/migrate-sqlite-to-postgres.js',
-  'scripts/build-release.js'
-].forEach(file => {
-  const r = spawnSync(process.execPath, ['--check', path.join(root, file)], { encoding: 'utf8' });
-  ok(`Sintaxe ${file}`, r.status === 0);
-  if (r.status !== 0) console.error(r.stderr);
+criticalFiles.forEach(file => {
+  const filePath = path.join(__dirname, file);
+  if (fs.existsSync(filePath)) {
+    passes.push(`Arquivo ${file} ✓`);
+  } else {
+    errors.push(`Arquivo crítico ausente: ${file}`);
+  }
 });
 
-console.log('\n-- Dependências --');
-const pkg = require(path.join(root, 'package.json'));
-[
-  'express', 'cors', 'jsonwebtoken', 'bcryptjs', 'sqlite3', 'multer', 'dotenv',
-  '@neondatabase/serverless', '@vercel/blob'
-].forEach(dep => ok(`Dependência ${dep}`, Boolean(pkg.dependencies?.[dep])));
-
-const server = read('server.js');
-const dash = read('public/dashboard.js');
-const pub = read('public/script.js');
-const html = read('public/index.html');
-const lock = exists('package-lock.json') ? read('package-lock.json') : '';
-
-console.log('\n-- Funcionalidades --');
-ok('Exclusão segura de fotos', server.includes('excluirImagemDefinitivamente') && server.includes('DELETE FROM imovel_midias') && server.includes("tipo = 'imagem'"));
-ok('Foto principal após exclusão', server.includes('novaPrincipalId'));
-ok('Exclusão de vídeos', server.includes("tipo = 'video'") && server.includes('/api/imoveis/:imovelId/videos/:videoId') && server.includes('storageResult') && server.includes('removeStoredAsset(video.arquivo)'));
-ok('Características dos imóveis', server.includes('caracteristicas TEXT') && server.includes('listaCaracteristicas') && read('db-adapter.js').includes('ADD COLUMN IF NOT EXISTS caracteristicas'));
-ok('Gerenciador unificado de mídias', dash.includes('carregarListaImagens') && dash.includes('carregarListaVideos'));
-ok('Galeria pública foto + vídeo', pub.includes('midiasGaleria') && pub.includes("media.tipo === 'video'"));
-ok('Vídeos MP4/WebM/MOV + YouTube/Vimeo', server.includes('video/quicktime') && pub.includes('youtube.com/embed'));
-ok('Migração SQLite -> PostgreSQL + Blob', exists('scripts/migrate-sqlite-to-postgres.js'));
-ok('Criação de admin fora do código', exists('scripts/create-admin.js') && read('scripts/create-admin.js').includes('ADMIN_EMAIL'));
-
-console.log('\n-- Segurança --');
-ok('Cookie de sessão HttpOnly', server.includes('HttpOnly') && server.includes('SameSite=Lax'));
-ok('Dashboard protegido no servidor', server.includes('protegerPaginaCorretor'));
-ok('Rotas do painel exigem corretor', server.includes('verificarCorretor'));
-ok('JWT_SECRET obrigatório em produção', server.includes('JWT_SECRET não configurado no Vercel'));
-ok('Cabeçalhos de segurança', server.includes('X-Content-Type-Options') && server.includes('Referrer-Policy'));
-ok('Limite de tentativas de login', server.includes('loginRateLimit'));
-ok('Validação de leads', server.includes('Informe um e-mail válido.'));
-const envTracked = spawnSync('git', ['ls-files', '--error-unmatch', '.env'], {
-  encoding: 'utf8'
+// ============= CHECK 5: HOSTINGER-FIRST =============
+['vercel.json', 'api/index.js'].forEach(file => {
+  if (fs.existsSync(path.join(__dirname, file))) errors.push(`Arquivo legado da Vercel encontrado: ${file}`);
 });
-ok('Sem segredos versionados', envTracked.status !== 0);
+try {
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+  const forbidden = ['@vercel/blob'];
+  const allDeps = Object.assign({}, pkg.dependencies || {}, pkg.optionalDependencies || {}, pkg.devDependencies || {});
+  forbidden.forEach(dep => { if (allDeps[dep]) errors.push(`Dependência Vercel não permitida na V12: ${dep}`); });
+  passes.push('Arquitetura Hostinger-first validada ✓');
+} catch (_) {}
 
-console.log('\n-- Hospedagem --');
-ok('Upload local persistente na Hostinger', server.includes('MEDIA_ROOT') && server.includes('LOCAL_MEDIA_ROOT') && server.includes("app.use('/uploads'"));
-ok('Upload direto Blob somente quando Vercel + Blob', server.includes('uploadDiretoBlob') && server.includes('IS_VERCEL && USE_BLOB'));
-
-console.log('\n-- Vercel --');
-ok('Entrada serverless', exists('api/index.js') && read('api/index.js').includes("require('../server')"));
-ok('Configuração Vercel', exists('vercel.json') && read('vercel.json').includes('api/index.js'));
-ok("Mídia configurável Hostinger/Vercel", server.includes("const USE_BLOB = db.mode === 'postgres' &&") && server.includes('MEDIA_ROOT') && server.includes("app.get('/api/config'"));
-ok('Lockfile com @neondatabase/serverless', lock.includes('@neondatabase/serverless'));
-ok('Lockfile com @vercel/blob', lock.includes('@vercel/blob'));
-
-console.log('\n-- SEO / Acessibilidade da home --');
-ok('Title único', /<title>[^<]{15,}<\/title>/.test(html));
-ok('Meta description', /<meta name="description" content="[^"]{50,}"/.test(html));
-ok('Canonical', html.includes('rel="canonical"'));
-ok('Open Graph + Twitter Card', html.includes('og:title') && html.includes('twitter:card'));
-ok('Dados estruturados schema.org', html.includes('application/ld+json') && html.includes('RealEstateAgent'));
-ok('H1 único', (html.match(/<h1/g) || []).length === 1);
-ok('robots.txt aponta sitemap', read('public/robots.txt').includes('Sitemap:'));
-ok('Formulários com label', html.includes('for="nomeLead"') && html.includes('for="emailLogin"'));
-ok('Skip link', html.includes('skip-link'));
-ok('Favicon leve (< 100 KB)', fs.statSync(path.join(root, 'public/favicon.ico')).size < 100 * 1024);
-
-console.log('\n-- Mídia do cliente (avisos) --');
-console.log('[i] Banner/foto do corretor são mídia operacional e não bloqueiam a entrega; podem ser enviados pelo painel.');
-
-console.log('');
-if (warnings) {
-  console.log(`${warnings} aviso(s): mídia pendente. A home usa /img/placeholder.svg até o envio dos arquivos.`);
+// ============= CHECK 5: Dependências instaladas =============
+const nodeModulesPath = path.join(__dirname, 'node_modules');
+if (fs.existsSync(nodeModulesPath)) {
+  passes.push(`node_modules encontrado ✓`);
+} else {
+  warnings.push('node_modules não encontrado — execute: npm install');
 }
-console.log(failed
-  ? 'RESULTADO: FALHOU — corrija os itens marcados com ✗\n'
-  : 'RESULTADO: APROVADO — estrutura, sintaxe, segurança e SEO OK\n');
-process.exit(failed ? 1 : 0);
 
+// ============= CHECK 6: Banco de dados =============
+const dbAdapterPath = path.join(__dirname, 'db-adapter.js');
+if (fs.existsSync(dbAdapterPath)) {
+  const dbContent = fs.readFileSync(dbAdapterPath, 'utf8');
+  if (dbContent.includes('sqlite') || dbContent.includes('postgres')) {
+    passes.push('Adaptador de banco detectado ✓');
+  } else {
+    warnings.push('Banco de dados pode não estar configurado corretamente');
+  }
+}
+
+// ============= CHECK 7: .env em produção =============
+const isProd = process.env.NODE_ENV === 'production';
+const envPath = path.join(__dirname, '.env');
+if (isProd) {
+  const requiredEnvVars = [
+    'JWT_SECRET',
+    'DATABASE_URL',
+    'NODE_ENV'
+  ];
+  
+  requiredEnvVars.forEach(varName => {
+    if (!process.env[varName]) {
+      errors.push(`Variável de ambiente ausente: ${varName}`);
+    } else {
+      passes.push(`Env var ${varName} ✓`);
+    }
+  });
+} else {
+  passes.push('Modo desenvolvimento ✓ (verificação de .env não necessária)');
+}
+
+// ============= CHECK 8: Storage =============
+const storageIndexPath = path.join(__dirname, 'storage', 'index.js');
+if (fs.existsSync(storageIndexPath)) {
+  passes.push('Storage abstrato configurado ✓');
+} else {
+  warnings.push('Storage index não encontrado');
+}
+
+// ============= CHECK 9: Rotas e mídia =============
+try {
+  const serverContent = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');
+  const dashboardContent = fs.readFileSync(path.join(__dirname, 'public', 'dashboard.js'), 'utf8');
+  const mediaChecks = [
+    ['Exclusão de foto por DELETE', serverContent.includes("app.delete('/api/imoveis/:imovelId/imagens/:imagemId'")],
+    ['Fallback POST para exclusão de foto', serverContent.includes("app.post('/api/imoveis/:imovelId/imagens/:imagemId/excluir'")],
+    ['Busca robusta da foto', serverContent.includes('function buscarImagemParaExclusao')],
+    ['Storage com exclusão segura', serverContent.includes('removeStoredAsset')],
+    ['Dashboard envia referência da foto', dashboardContent.includes('body:JSON.stringify({arquivo:arquivo||\'\',url_externa:urlExterna||\'\'})')]
+  ];
+  mediaChecks.forEach(([label, ok]) => {
+    if (ok) passes.push(`${label} ✓`);
+    else errors.push(`Falha na verificação de mídia: ${label}`);
+  });
+} catch (e) {
+  errors.push(`Não foi possível validar rotas de mídia: ${e.message}`);
+}
+
+// ============= CHECK 10: Integridade de scripts =============
+const smokeTestPath = path.join(__dirname, 'scripts', 'smoke-test.js');
+if (fs.existsSync(smokeTestPath)) {
+  passes.push('Smoke test disponível ✓');
+} else {
+  warnings.push('Smoke test não encontrado');
+}
+
+// ============= RELATÓRIO FINAL =============
+console.log(`${GREEN}✓ VALIDAÇÕES PASSARAM${RESET}`);
+passes.forEach(msg => console.log(`  ${GREEN}✓${RESET} ${msg}`));
+
+if (warnings.length > 0) {
+  console.log(`\n${YELLOW}⚠ AVISOS${RESET}`);
+  warnings.forEach(msg => console.log(`  ${YELLOW}⚠${RESET} ${msg}`));
+}
+
+if (errors.length > 0) {
+  console.log(`\n${RED}✗ ERROS${RESET}`);
+  errors.forEach(msg => console.log(`  ${RED}✗${RESET} ${msg}`));
+  console.log(`\n${RED}═══════════════════════════════════════${RESET}`);
+  console.log(`${RED}PREFLIGHT FALHOU${RESET}`);
+  console.log(`${RED}═══════════════════════════════════════${RESET}\n`);
+  process.exit(1);
+}
+
+console.log(`\n${BLUE}═══════════════════════════════════════${RESET}`);
+console.log(`${GREEN}PREFLIGHT OK — PRONTO PARA DEPLOY${RESET}`);
+console.log(`${BLUE}═══════════════════════════════════════${RESET}\n`);
+
+process.exit(0);

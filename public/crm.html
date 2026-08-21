@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CRM — Fabiano Reis Imóveis</title>
+<link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/ui.css">
+<link rel="stylesheet" href="/crm.css">
+</head>
+<body>
+<main class="crm">
+<header class="crm-head"><div><h1>CRM — Fabiano Reis</h1><p>Clientes, histórico, WhatsApp e agenda em um único painel.</p></div><div class="crm-actions"><a class="fr-btn fr-btn-ghost" href="/dashboard.html">← Dashboard</a><button id="logout" class="fr-btn fr-btn-ghost">Sair</button></div></header>
+<section class="crm-grid" aria-label="Resumo CRM"><div class="crm-card"><div>Clientes</div><div id="nClientes" class="crm-number">—</div></div><div class="crm-card"><div>Interações</div><div id="nInteracoes" class="crm-number">—</div></div><div class="crm-card"><div>Visitas abertas</div><div id="nVisitas" class="crm-number">—</div></div><div class="crm-card"><div>Visitas hoje</div><div id="nHoje" class="crm-number">—</div></div></section>
+<section class="crm-layout">
+<div class="crm-card"><h2>Clientes</h2><div class="crm-actions"><input id="busca" placeholder="Buscar nome, e-mail ou telefone" aria-label="Buscar cliente"><button id="novo" class="fr-btn fr-btn-primary">+ Cliente</button></div><div class="crm-scroll"><table class="crm-table"><thead><tr><th>Nome</th><th>Contato</th><th>Interações</th><th>Ações</th></tr></thead><tbody id="clientes"></tbody></table></div></div>
+<div class="crm-card"><h2 id="tituloForm">Novo cliente</h2><form id="clienteForm" class="crm-form"><input type="hidden" id="clienteId"><input id="nome" placeholder="Nome completo" required><input id="email" type="email" placeholder="E-mail"><input id="telefone" placeholder="Telefone"><input id="whatsapp" placeholder="WhatsApp"><input id="cidade" placeholder="Cidade"><textarea id="observacoes" rows="4" placeholder="Observações"></textarea><div class="crm-actions"><button class="fr-btn fr-btn-primary">Salvar cliente</button><button type="button" id="cancelar" class="fr-btn fr-btn-ghost">Limpar</button></div><div id="msg" class="crm-msg" role="status"></div></form></div>
+</section>
+<section class="crm-layout" class="crm-inline-space">
+<div class="crm-card"><h2>Histórico do cliente</h2><div id="historico" class="empty">Selecione um cliente.</div><form id="interacaoForm" class="crm-form" hidden><select id="tipo"><option value="whatsapp">WhatsApp</option><option value="telefone">Telefone</option><option value="email">E-mail</option><option value="visita">Visita</option><option value="proposta">Proposta</option><option value="nota">Nota</option><option value="outro">Outro</option></select><textarea id="descricao" rows="3" placeholder="O que aconteceu?" required></textarea><button class="fr-btn fr-btn-primary">Registrar interação</button></form></div>
+<div class="crm-card"><h2>Agenda de visitas</h2><form id="visitaForm" class="crm-form"><select id="visCliente" required><option value="">Selecione o cliente</option></select><input id="dataVisita" type="date" required><input id="horaVisita" type="time"><input id="imovelId" type="number" min="1" placeholder="ID do imóvel (opcional)"><textarea id="obsVisita" rows="3" placeholder="Observações"></textarea><button class="fr-btn fr-btn-primary">Agendar visita</button></form><div id="agenda" style="margin-top:16px"></div></div>
+</section>
+</main>
+<script src="/crm.js" defer></script>
+</body></html>

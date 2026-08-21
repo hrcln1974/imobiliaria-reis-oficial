@@ -1,6 +1,7 @@
 User-agent: *
 Allow: /
 Disallow: /dashboard.html
+Disallow: /crm.html
 Disallow: /api/
 
 Sitemap: https://fabianoreisimoveis.com.br/sitemap.xml

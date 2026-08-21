@@ -1,0 +1,6 @@
+FABIANO REIS IMÓVEIS
+Pacote de entrega ao cliente
+Versão: V12.1.5
+Base evolutiva: V7
+Tipo: source delivery / cliente
+Ambiente de produção: Hostinger + PostgreSQL/Neon + storage local persistente

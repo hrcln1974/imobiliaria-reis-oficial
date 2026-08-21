@@ -1,0 +1,175 @@
+/* =========================================================
+   FABIANO REIS IMÓVEIS — Camada Premium V7.1
+   Complementa style.css e ui.css. Nenhum componente é redefinido
+   do zero: apenas refinamento de hierarquia, foco, acessibilidade,
+   estados (loading/vazio/erro/sucesso) e microinterações.
+   ========================================================= */
+
+:root {
+  --fr-elev-1: 0 1px 2px rgba(16, 26, 36, .06);
+  --fr-elev-2: 0 10px 30px -12px rgba(16, 26, 36, .18);
+  --fr-ring: 0 0 0 3px rgba(185, 139, 70, .35);
+  --fr-ease: cubic-bezier(.22, .61, .36, 1);
+}
+
+/* ---------- Foco visível e acessível em todo o site ---------- */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--fr-gold, #b98b46);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.skip-link {
+  position: absolute;
+  left: 16px;
+  top: -60px;
+  z-index: 3000;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--fr-brand, #0f2f3d);
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+  transition: top .18s var(--fr-ease);
+}
+.skip-link:focus { top: 12px; }
+
+/* ---------- Tipografia e ritmo vertical ---------- */
+.fr-page h1, .fr-page h2, .fr-page h3 { text-wrap: balance; }
+.fr-page p { text-wrap: pretty; }
+
+/* ---------- Cards de imóvel: elevação sutil e hover contido ---------- */
+.fr-card {
+  transition: transform .25s var(--fr-ease), box-shadow .25s var(--fr-ease),
+    border-color .25s var(--fr-ease);
+  will-change: transform;
+}
+@media (hover: hover) and (pointer: fine) {
+  .fr-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--fr-elev-2);
+    border-color: color-mix(in srgb, var(--fr-gold, #b98b46) 45%, var(--fr-line, #e4e9ef));
+  }
+  .fr-card:hover .fr-card__foto img { transform: scale(1.035); }
+}
+.fr-card__foto { overflow: hidden; }
+.fr-card__foto img { transition: transform .5s var(--fr-ease); }
+
+/* Nenhuma informação essencial depende de hover: ações sempre visíveis. */
+.fr-card__acoes { opacity: 1 !important; visibility: visible !important; }
+
+/* ---------- Botões: microinteração discreta ---------- */
+.fr-btn {
+  transition: transform .16s var(--fr-ease), box-shadow .2s var(--fr-ease),
+    background-color .2s var(--fr-ease), color .2s var(--fr-ease);
+}
+.fr-btn:active { transform: translateY(1px); }
+.fr-btn[disabled],
+.fr-btn[aria-disabled="true"],
+button[disabled] {
+  opacity: .6;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none;
+}
+
+/* ---------- Estado de carregamento em ações (is-loading) ---------- */
+.is-loading {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+}
+.is-loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 18px;
+  height: 18px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  color: #fff;
+  animation: fr-spin .7s linear infinite;
+}
+@keyframes fr-spin { to { transform: rotate(360deg); } }
+
+/* ---------- Skeletons adicionais ---------- */
+.fr-skeleton--linha { min-height: 16px; margin-bottom: 10px; border-radius: 6px; }
+.fr-skeleton--midia { min-height: 220px; }
+
+/* ---------- Feedback (sucesso / erro / info) ---------- */
+.fr-aviso {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: var(--fr-radius-sm, 10px);
+  border: 1px solid var(--fr-line, #e4e9ef);
+  background: var(--fr-surface-2, #f6f8fa);
+  color: var(--fr-ink-2, #1c2b3a);
+  font-size: .95rem;
+  line-height: 1.5;
+}
+.fr-aviso--ok {
+  border-color: color-mix(in srgb, var(--fr-green, #128c4a) 40%, #fff);
+  background: color-mix(in srgb, var(--fr-green, #128c4a) 8%, #fff);
+}
+.fr-aviso--erro {
+  border-color: color-mix(in srgb, var(--fr-danger, #b3261e) 40%, #fff);
+  background: color-mix(in srgb, var(--fr-danger, #b3261e) 7%, #fff);
+}
+
+/* ---------- Estado vazio premium ---------- */
+.fr-vazio strong { display: block; color: var(--fr-ink, #101a24); font-size: 1.05rem; margin-bottom: 6px; }
+.fr-vazio p { margin: 0; }
+
+/* ---------- Imagens: evita layout shift (CLS) ---------- */
+img { max-width: 100%; height: auto; }
+.fr-card__foto img,
+.fr-galeria img { display: block; }
+
+/* ---------- Formulários ---------- */
+.fr-field input:user-invalid,
+.fr-field select:user-invalid,
+.fr-field textarea:user-invalid {
+  border-color: var(--fr-danger, #b3261e);
+}
+.fr-field .fr-erro-campo {
+  color: var(--fr-danger, #b3261e);
+  font-size: .82rem;
+  margin-top: 4px;
+}
+
+/* ---------- Barra de contato fixa em telas pequenas ---------- */
+@media (max-width: 640px) {
+  .fr-page { padding-bottom: env(safe-area-inset-bottom); }
+  .whatsapp-float, .fr-whats-float { bottom: 18px; right: 14px; }
+}
+
+/* ---------- Responsividade fina (320px → ultra-wide) ---------- */
+@media (max-width: 360px) {
+  .fr-btn { width: 100%; }
+  .fr-hero__ctas { flex-direction: column; align-items: stretch; }
+}
+@media (min-width: 1600px) {
+  .fr-container, .container { width: min(1320px, 88vw); max-width: 1320px; }
+}
+
+/* ---------- Impressão (ficha do imóvel) ---------- */
+@media print {
+  .navbar, .whatsapp-float, .fr-whats-float, .fr-modal, footer .fr-footer__cta { display: none !important; }
+  body { background: #fff; color: #000; }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: .75rem; }
+}
+
+/* ---------- Preferência por menos movimento ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .fr-card:hover { transform: none; }
+  .fr-card:hover .fr-card__foto img { transform: none; }
+}

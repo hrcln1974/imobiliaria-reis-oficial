@@ -1,0 +1,25 @@
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  let clientes = [], clienteAtual = null;
+  async function api(url, options={}) {
+    const r = await fetch(url, {credentials:'same-origin', ...options, headers:{'Content-Type':'application/json', ...(options.headers||{})}});
+    if (r.status === 401 || r.status === 403) { location.href='/?login=1'; throw new Error('Sessão expirada'); }
+    const data = await r.json().catch(()=>({})); if(!r.ok) throw new Error(data.erro || 'Erro de comunicação'); return data;
+  }
+  function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+  function renderClientes(){
+    $('clientes').innerHTML = clientes.length ? clientes.map(c=>`<tr><td><strong>${esc(c.nome)}</strong><br><small>${esc(c.email||'')}</small></td><td>${esc(c.whatsapp||c.telefone||'—')}</td><td><span class="tag">${c.total_interacoes||0}</span></td><td><button class="fr-btn fr-btn-ghost btn-cliente" data-id="${c.id}">Abrir</button></td></tr>`).join('') : '<tr><td colspan="4" class="empty">Nenhum cliente.</td></tr>';
+    $('visCliente').innerHTML='<option value="">Selecione o cliente</option>'+clientes.map(c=>`<option value="${c.id}">${esc(c.nome)}</option>`).join('');
+  }
+  async function load(){
+    try{const s=await api('/api/crm/resumo'); $('nClientes').textContent=s.clientes; $('nInteracoes').textContent=s.interacoes; $('nVisitas').textContent=s.visitas_abertas; $('nHoje').textContent=s.visitas_hoje; const d=await api('/api/crm/clientes?q='+encodeURIComponent($('busca').value)); clientes=d.clientes; renderClientes(); await agenda();}catch(e){$('msg').textContent=e.message;}
+  }
+  function limpar(){ $('clienteId').value=''; $('nome').value=''; $('email').value=''; $('telefone').value=''; $('whatsapp').value=''; $('cidade').value=''; $('observacoes').value=''; $('tituloForm').textContent='Novo cliente'; $('msg').textContent=''; clienteAtual=null; $('historico').innerHTML='<div class="empty">Selecione um cliente.</div>'; $('interacaoForm').hidden=true; }
+  $('clienteForm').addEventListener('submit',async e=>{e.preventDefault();const id=$('clienteId').value;const body={nome:$('nome').value,email:$('email').value,telefone:$('telefone').value,whatsapp:$('whatsapp').value,cidade:$('cidade').value,observacoes:$('observacoes').value};try{await api(id?'/api/crm/clientes/'+id:'/api/crm/clientes',{method:id?'PUT':'POST',body:JSON.stringify(body)});$('msg').textContent='Cliente salvo com sucesso.';limpar();await load();}catch(x){$('msg').textContent=x.message;}});
+  $('clientes').addEventListener('click',async e=>{const b=e.target.closest('.btn-cliente');if(!b)return;const d=await api('/api/crm/clientes/'+b.dataset.id);clienteAtual=d.cliente;$('clienteId').value=d.cliente.id;$('nome').value=d.cliente.nome;$('email').value=d.cliente.email||'';$('telefone').value=d.cliente.telefone||'';$('whatsapp').value=d.cliente.whatsapp||'';$('cidade').value=d.cliente.cidade||'';$('observacoes').value=d.cliente.observacoes||'';$('tituloForm').textContent='Editar cliente';$('interacaoForm').hidden=false;$('historico').innerHTML=(d.interacoes||[]).map(i=>`<p><strong>${esc(i.tipo)}</strong> — ${esc(i.descricao)}<br><small>${esc(i.criado_em)}</small></p>`).join('')||'<div class="empty">Sem interações.</div>';});
+  $('interacaoForm').addEventListener('submit',async e=>{e.preventDefault();if(!clienteAtual)return;try{await api('/api/crm/interacoes',{method:'POST',body:JSON.stringify({cliente_id:clienteAtual.id,tipo:$('tipo').value,descricao:$('descricao').value})});$('descricao').value='';const d=await api('/api/crm/clientes/'+clienteAtual.id);$('historico').innerHTML=(d.interacoes||[]).map(i=>`<p><strong>${esc(i.tipo)}</strong> — ${esc(i.descricao)}<br><small>${esc(i.criado_em)}</small></p>`).join('')||'<div class="empty">Sem interações.</div>';await load();}catch(x){alert(x.message);}});
+  $('visitaForm').addEventListener('submit',async e=>{e.preventDefault();try{await api('/api/crm/visitas',{method:'POST',body:JSON.stringify({cliente_id:$('visCliente').value,data_visita:$('dataVisita').value,hora_visita:$('horaVisita').value,imovel_id:$('imovelId').value,observacoes:$('obsVisita').value})});$('obsVisita').value='';await load();}catch(x){alert(x.message);}});
+  async function agenda(){const d=await api('/api/crm/visitas');$('agenda').innerHTML=d.visitas.length?d.visitas.slice(0,15).map(v=>`<p><strong>${esc(v.data_visita)} ${esc(v.hora_visita||'')}</strong><br>${esc(v.cliente_nome||'Cliente')} — ${esc(v.imovel_titulo||'Imóvel não informado')} <span class="tag">${esc(v.status)}</span></p>`).join(''):'<div class="empty">Nenhuma visita cadastrada.</div>';}
+  $('busca').addEventListener('input',()=>{clearTimeout(window.__t);window.__t=setTimeout(load,250)});$('novo').addEventListener('click',limpar);$('cancelar').addEventListener('click',limpar);$('logout').addEventListener('click',async()=>{try{await api('/api/logout',{method:'POST'})}finally{location.href='/'}});load();
+})();

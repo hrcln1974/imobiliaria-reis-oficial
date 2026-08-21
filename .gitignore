@@ -1,13 +1,39 @@
-node_modules/
+# Segredos e ambiente
 .env
-.env.local
-*.log
+.env.*
+!.env.example
+
+# Dependências e build
+node_modules/
+release/
+*.tgz
+
+# Banco local de desenvolvimento (nunca versionar dados)
 database.db
-database.db-journal
+database.db-wal
+database.db-shm
+*.sqlite
+*.sqlite3
+
+# Backups e dumps (contêm dados reais de clientes)
+backups/
+*.dump
+*.sql.gz
+
+# Mídia enviada pelo corretor (fica no storage persistente, não no Git)
 public/uploads/imagens/*
 public/uploads/videos/*
+!public/uploads/README.txt
 !public/uploads/imagens/.gitkeep
 !public/uploads/videos/.gitkeep
-release/
-.vercel/
+
+# Logs e temporários
+logs/
+*.log
+npm-debug.log*
 .DS_Store
+Thumbs.db
+.vercel
+
+*.db
+coverage/
